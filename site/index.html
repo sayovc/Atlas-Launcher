@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Atlas Launcher — a fast, open launcher for Minecraft: Java Edition</title>
-<meta name="description" content="Atlas is an open-source Rust desktop launcher for Minecraft: Java Edition. Multiple installations, verified downloads, secure Microsoft sign-in.">
+<title>Atlas Launcher</title>
+<meta name="description" content="A fast, open-source Minecraft: Java Edition launcher written in Rust.">
 <meta name="theme-color" content="#0c0f14">
-<meta property="og:title" content="Atlas Launcher — a fast, open launcher for Minecraft: Java Edition">
-<meta property="og:description" content="Atlas is an open-source Rust desktop launcher for Minecraft: Java Edition. Multiple installations, verified downloads, secure Microsoft sign-in.">
+<meta property="og:title" content="Atlas Launcher">
+<meta property="og:description" content="A fast, open-source Minecraft: Java Edition launcher written in Rust.">
 <meta property="og:image" content="assets/home.png">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/style.css">
@@ -20,43 +20,35 @@
 <ul><li><a href="index.html" aria-current="page">Home</a></li><li><a href="download.html">Download</a></li><li><a href="faq.html">FAQ</a></li><li><a href="https://github.com/sayovc/Atlas-Launcher">GitHub</a></li><li><a href="#" data-discord hidden>Discord</a></li></ul>
 </div></header>
 <main>
-<section class="hero"><div class="wrap"><svg class="contours" viewBox="0 0 900 700" fill="none" aria-hidden="true"><ellipse cx="520" cy="330" rx="60" ry="40" transform="rotate(-8 520 330)" stroke="#3fd0c0" stroke-opacity="0.32"/><ellipse cx="520" cy="330" rx="102" ry="70" transform="rotate(-5 520 330)" stroke="#3fd0c0" stroke-opacity="0.29"/><ellipse cx="520" cy="330" rx="144" ry="100" transform="rotate(-2 520 330)" stroke="#3fd0c0" stroke-opacity="0.26"/><ellipse cx="520" cy="330" rx="186" ry="130" transform="rotate(1 520 330)" stroke="#3fd0c0" stroke-opacity="0.23"/><ellipse cx="520" cy="330" rx="228" ry="160" transform="rotate(4 520 330)" stroke="#3fd0c0" stroke-opacity="0.20"/><ellipse cx="520" cy="330" rx="270" ry="190" transform="rotate(7 520 330)" stroke="#3fd0c0" stroke-opacity="0.17"/><ellipse cx="520" cy="330" rx="312" ry="220" transform="rotate(10 520 330)" stroke="#3fd0c0" stroke-opacity="0.14"/><ellipse cx="520" cy="330" rx="354" ry="250" transform="rotate(13 520 330)" stroke="#3fd0c0" stroke-opacity="0.11"/><ellipse cx="520" cy="330" rx="396" ry="280" transform="rotate(16 520 330)" stroke="#3fd0c0" stroke-opacity="0.08"/><ellipse cx="520" cy="330" rx="438" ry="310" transform="rotate(19 520 330)" stroke="#3fd0c0" stroke-opacity="0.05"/></svg>
-<span class="badge">Pre-alpha · in active development</span>
-<h1>Chart your next world.</h1>
-<p class="lead">Atlas is a fast, open-source launcher for Minecraft: Java Edition, written in Rust. Separate installations, verified downloads and secure sign-in, all in one clean app.</p>
-<div class="ctas"><a class="btn primary" href="download.html">Download</a><a class="btn" href="https://github.com/sayovc/Atlas-Launcher">View source</a><a class="btn" href="#" data-discord hidden>Join Discord</a></div>
-<p class="fine">You need your own copy of Minecraft: Java Edition. Atlas includes no Mojang game files.</p>
-</div></section>
+<section class="hero2"><canvas id="globe" aria-hidden="true"></canvas>
+<div class="inner">
+<h1 class="title">Atlas</h1>
+<p class="tag">A launcher that's <span class="word" id="word">fast.</span></p>
+<a class="btn primary glow magnetic" href="download.html">Download</a>
+</div><span class="scroll-hint" aria-hidden="true"></span></section>
 
-<section><div class="wrap">
-<p class="eyebrow">Why Atlas</p><h2>A launcher that doesn't get in the way</h2>
-<p class="sub">Native code, a small footprint and a backend that tells you exactly what is happening, without fake progress bars. Features tagged <em>Coming</em> aren't in the app yet.</p>
-<div class="grid">
-<div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></div><h3>Separate installations <span class="pill next">Coming</span></h3><p>Give each setup its own version, folder, memory and launch options. Removing one never touches anything else.</p></div>
-<div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div><h3>Verified downloads <span class="pill next">Coming</span></h3><p>Every file is checked against the official checksum. Interrupted downloads resume, and a failed download can never break an installation.</p></div>
-<div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3>Secure sign-in <span class="pill next">Coming</span></h3><p>Sign in with Microsoft in your own browser. Atlas never sees your password, and tokens stay in your system's secure credential store.</p></div>
-<div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></div><h3>Clear logs <span class="pill done">Available</span></h3><p>Launcher, game and crash logs in one place, with search and filters. Secrets are always removed from logs.</p></div>
-<div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div><h3>Command line too <span class="pill done">Available</span></h3><p>Everything the app does, the <code>atlas</code> command can do too, with JSON output for scripts.</p></div>
-<div class="card reveal"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg></div><h3>Open source <span class="pill done">Available</span></h3><p>MIT licensed and developed in public. No telemetry and no ads.</p></div>
-</div></div></section>
+<div class="stage"><div class="frame"><img src="assets/home.png" alt="Atlas launcher home screen"></div></div>
 
-<section style="padding-top:0"><div class="wrap">
-<p class="eyebrow">Preview</p><h2>Built to feel calm</h2>
-<p class="sub">Real screenshots of the current pre-alpha build.</p>
-<div class="shots reveal"><img class="shot" src="assets/home.png" alt="Atlas home screen showing status and play panel" loading="lazy">
-<div class="side"><img class="shot" src="assets/settings.png" alt="Atlas settings screen" loading="lazy"><img class="shot" src="assets/logs.png" alt="Atlas log viewer" loading="lazy"></div></div>
-</div></section>
+<div class="tiles">
+<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg><b>Native Rust</b><small>Opens fast, uses little memory</small></div>
+<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><b>Verified files</b><small>Every download checksummed</small></div>
+<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg><b>Many installs</b><small>Each fully separate</small></div>
+<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg><b>Open source</b><small>MIT · no telemetry</small></div>
+</div>
 
-<section style="padding-top:0"><div class="wrap">
-<p class="eyebrow">Roadmap</p><h2>Where we are</h2>
-<p class="sub">Atlas is built in stages. We only list a feature as available once it actually works.</p>
-<div class="road">
-<div class="step reveal"><b>PHASE 1</b><span class="d">App window, settings, logging, data folders, command line</span><span class="pill done">Done</span></div>
-<div class="step reveal"><b>PHASE 2</b><span class="d">Version list, verified downloads, installing and repairing versions</span><span class="pill next">In progress</span></div>
-<div class="step reveal"><b>PHASE 3</b><span class="d">Microsoft sign-in, installations, launching the game, game logs</span><span class="pill later">Planned</span></div>
-<div class="step reveal"><b>PHASE 4</b><span class="d">Servers, mods, resource packs, worlds</span><span class="pill later">Planned</span></div>
-<div class="step reveal"><b>PHASE 5</b><span class="d">Signed auto-updates, installers, optional local AI tools</span><span class="pill later">Planned</span></div>
-</div></div></section>
+<div class="progress"><b>Pre-alpha</b>
+<div class="bar"><i class="done"></i><i class="now"></i><i></i><i></i><i></i></div>
+<small>Phase 2 of 5 · playing comes in Phase 3</small></div>
+<script src="assets/globe.js" defer></script>
+<script>
+(() => {
+  const words = ["fast.", "open.", "yours.", "safe.", "simple."];
+  const el = document.getElementById("word"); let i = 0;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  setInterval(() => { i = (i + 1) % words.length; el.textContent = words[i];
+    el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }, 2200);
+})();
+</script>
 
 </main>
 <footer><div class="wrap">
