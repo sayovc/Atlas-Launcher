@@ -339,8 +339,10 @@ mod tests {
         assert!(!a.contains("--width"));
         assert!(!a.contains("--weird"), "unknown placeholder dropped with its flag: {a}");
         let cp_i = c.args.iter().position(|x| x == "-cp").unwrap();
-        assert!(c.args[cp_i + 1].contains("a/b.jar") && c.args[cp_i + 1].ends_with("X.jar"));
-        assert!(!c.args[cp_i + 1].contains("w/w.jar"));
+        // compare with forward slashes so this also passes on Windows
+        let cp = c.args[cp_i + 1].replace('\\', "/");
+        assert!(cp.contains("a/b.jar") && cp.ends_with("X.jar"), "{cp}");
+        assert!(!cp.contains("w/w.jar"));
         let shown = display_command(&c);
         assert!(!shown.contains("SECRET") && shown.contains("[REDACTED]"));
     }
