@@ -12,6 +12,8 @@ pub struct TestServer {
     pub base: String,
     pub hits: Arc<AtomicUsize>,
     pub range_hits: Arc<AtomicUsize>,
+    /// Paths that were served as a resumed (206) response.
+    pub range_paths: Arc<Mutex<Vec<String>>>,
     /// When set, the next response for that path is cut after N bytes.
     pub cut_after: Arc<Mutex<HashMap<String, usize>>>,
 }
@@ -34,12 +36,13 @@ pub fn serve_dynamic(honour_range: bool) -> (TestServer, FileMap) {
     let base = format!("http://{}", listener.local_addr().unwrap());
     let hits = Arc::new(AtomicUsize::new(0));
     let range_hits = Arc::new(AtomicUsize::new(0));
+    let range_paths: Arc<Mutex<Vec<String>>> = Arc::default();
     let cut_after: Arc<Mutex<HashMap<String, usize>>> = Arc::default();
-    let (h, rh, cut) = (hits.clone(), range_hits.clone(), cut_after.clone());
+    let (h, rh, cut, rp) = (hits.clone(), range_hits.clone(), cut_after.clone(), range_paths.clone());
     std::thread::spawn(move || {
         for stream in listener.incoming() {
             let Ok(mut stream) = stream else { continue };
-            let (files, h, rh, cut) = (files.clone(), h.clone(), rh.clone(), cut.clone());
+            let (files, h, rh, cut, rp) = (files.clone(), h.clone(), rh.clone(), cut.clone(), rp.clone());
             std::thread::spawn(move || {
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let mut line = String::new();
@@ -63,6 +66,7 @@ pub fn serve_dynamic(honour_range: bool) -> (TestServer, FileMap) {
                 let (status, slice) = match range_from {
                     Some(from) if honour_range && from < body.len() => {
                         rh.fetch_add(1, Ordering::SeqCst);
+                        rp.lock().unwrap().push(path.clone());
                         ("206 Partial Content", &body[from..])
                     }
                     _ => ("200 OK", &body[..]),
@@ -76,6 +80,6 @@ pub fn serve_dynamic(honour_range: bool) -> (TestServer, FileMap) {
             });
         }
     });
-    (TestServer { base, hits, range_hits, cut_after }, files_out)
+    (TestServer { base, hits, range_hits, range_paths, cut_after }, files_out)
 }
 

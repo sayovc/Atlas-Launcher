@@ -5,7 +5,6 @@ use atlas_downloads::{sha1_hex, CancellationToken, Downloader, DownloaderConfig,
 use atlas_shared::ErrorCode;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 struct Fixture {
@@ -171,9 +170,10 @@ async fn interrupted_install_is_not_installed_and_resumes() {
     assert!(s.installed().unwrap().is_empty());
     assert!(t.path().join("versions/.staging/1.0-test/1.0-test.jar.part").exists(), "partial kept for resume");
 
-    let before = f.server.range_hits.load(Ordering::SeqCst);
+    f.server.range_paths.lock().unwrap().clear();
     install(&s, &dl(0)).await.unwrap();
-    assert_eq!(f.server.range_hits.load(Ordering::SeqCst), before + 1, "client jar resumed");
+    // Other files cancelled mid-stream may resume too; the cut jar must.
+    assert!(f.server.range_paths.lock().unwrap().iter().any(|p| p == "/client.jar"), "client jar resumed");
     assert!(s.verify("1.0-test").unwrap().ok());
 }
 
