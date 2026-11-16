@@ -18,11 +18,31 @@ fn env() -> Env {
 impl Env {
     fn cmd(&self) -> Command {
         let mut c = Command::cargo_bin("atlas").unwrap();
-        c.env("ATLAS_CONFIG_DIR", &self.boot).env_remove("ATLAS_DATA_DIR").env("HOME", &self.root).env("XDG_DATA_HOME", self.root.join("xdg-data"));
+        // Always isolate: on Windows/macOS the platform dirs ignore HOME, so a
+        // test must never fall back to the real data folder.
+        c.env("ATLAS_CONFIG_DIR", &self.boot).env("ATLAS_DATA_DIR", self.root.join("data"));
         c
     }
     fn json(&self, args: &[&str]) -> (bool, Value) {
         let out = self.cmd().arg("--json").args(args).output().unwrap();
+        let v: Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|_| panic!("not json: {}", String::from_utf8_lossy(&out.stdout)));
+        (out.status.success(), v)
+    }
+}
+
+/// Same as [`Env`] but without ATLAS_DATA_DIR, so the locator decides.
+struct LocatorEnv(Env);
+
+impl std::ops::Deref for LocatorEnv {
+    type Target = Env;
+    fn deref(&self) -> &Env {
+        &self.0
+    }
+}
+
+impl LocatorEnv {
+    fn json(&self, args: &[&str]) -> (bool, Value) {
+        let out = self.0.cmd().env_remove("ATLAS_DATA_DIR").arg("--json").args(args).output().unwrap();
         let v: Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|_| panic!("not json: {}", String::from_utf8_lossy(&out.stdout)));
         (out.status.success(), v)
     }
@@ -68,8 +88,15 @@ fn destructive_commands_need_yes() {
 #[test]
 fn data_dir_move_roundtrip() {
     let e = env();
+    // Moving is refused while ATLAS_DATA_DIR pins the folder, so this test
+    // uses a locator-defined (still temporary) data root instead.
+    std::fs::create_dir_all(&e.boot).unwrap();
+    let start = e.root.join("start-data");
+    std::fs::write(e.boot.join("locator.toml"), format!("schema = 1\ndata_root = {:?}\n", start.to_string_lossy())).unwrap();
+    let e = LocatorEnv(e);
     let (_, before) = e.json(&["paths"]);
     let old = before["data"]["data_root"].as_str().unwrap().to_string();
+    assert_eq!(std::path::Path::new(&old), start.as_path());
     let target = e.root.join("relocated");
     let (ok, v) = e.json(&["data-dir", "move", target.to_str().unwrap(), "--yes"]);
     assert!(ok, "{v}");
