@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Download — Atlas Launcher</title>
+<meta name="description" content="Download Atlas Launcher for Windows, macOS and Linux.">
+<meta name="theme-color" content="#0c0f14">
+<meta property="og:title" content="Download — Atlas Launcher">
+<meta property="og:description" content="Download Atlas Launcher for Windows, macOS and Linux.">
+<meta property="og:image" content="assets/home.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+<a class="brand" href="index.html"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke="#3fd0c0" stroke-width="2"/><ellipse cx="16" cy="16" rx="5" ry="12" transform="rotate(-24 16 16)" stroke="#3fd0c0" stroke-opacity=".8" stroke-width="1.6"/><ellipse cx="16" cy="16" rx="12" ry="4.2" transform="rotate(-24 16 16)" stroke="#3fd0c0" stroke-opacity=".8" stroke-width="1.6"/><circle cx="23.5" cy="8.5" r="2" fill="#3fd0c0"/></svg>ATLAS</a>
+<button class="menu-btn" aria-expanded="false" aria-label="Menu">Menu</button>
+<ul><li><a href="index.html">Home</a></li><li><a href="download.html" aria-current="page">Download</a></li><li><a href="faq.html">FAQ</a></li><li><a href="https://github.com/sayovc/Atlas-Launcher">GitHub</a></li><li><a href="#" data-discord hidden>Discord</a></li></ul>
+</div></header>
+<main>
+<div class="page"><div class="wrap"><div class="prose">
+<h1>Download Atlas</h1>
+<p class="meta">Pre-alpha. Expect missing features and rough edges.</p>
+<div class="note">Atlas can't install or launch the game yet; that arrives in Phase 3. Today's builds are for previewing the app and testing.</div>
+</div>
+<div id="release-status" class="prose" style="margin-top:28px"><p>Checking for the latest release…</p></div>
+<div class="dl-grid" id="dl-grid" hidden></div>
+<div class="prose">
+<h2>Build from source</h2>
+<p>Requires <a href="https://rustup.rs">Rust</a> 1.85 or newer.</p>
+<pre>git clone https://github.com/sayovc/Atlas-Launcher
+cd Atlas-Launcher
+cargo run --release -p atlas-ui --bin atlas-launcher</pre>
+<p>On Linux you may need the usual desktop libraries, for example <code>libxkbcommon-x11-0</code> on Debian/Ubuntu.</p>
+<h2>System requirements</h2>
+<ul><li>Windows 10 or later, macOS 12 or later, or a modern 64-bit Linux desktop</li><li>OpenGL 3.3-capable graphics</li><li>Your own copy of Minecraft: Java Edition (needed to play once launching is available)</li></ul>
+<h2>Verify your download</h2>
+<p>Each release lists a SHA-256 checksum for every file. Compare it before running anything. Later releases will also be cryptographically signed.</p>
+</div></div></div>
+<script>
+(async () => {
+  const status = document.getElementById("release-status");
+  const grid = document.getElementById("dl-grid");
+  const ua = navigator.userAgent.toLowerCase();
+  const mine = ua.includes("win") ? "windows" : ua.includes("mac") ? "macos" : ua.includes("linux") ? "linux" : "";
+  try {
+    const r = await fetch("https://api.github.com/repos/sayovc/Atlas-Launcher/releases/latest", { headers: { Accept: "application/vnd.github+json" } });
+    if (r.status === 404) { status.innerHTML = "<p><strong>No release has been published yet.</strong> You can build Atlas from source below, or watch the <a href=\"https://github.com/sayovc/Atlas-Launcher/releases\">releases page</a>.</p>"; return; }
+    if (!r.ok) throw new Error(r.status);
+    const rel = await r.json();
+    const groups = { windows: [], macos: [], linux: [], other: [] };
+    for (const a of rel.assets) {
+      const n = a.name.toLowerCase();
+      const k = /windows|\.exe|\.msi|win64/.test(n) ? "windows" : /macos|darwin|\.dmg/.test(n) ? "macos" : /linux|\.appimage|\.deb|\.rpm/.test(n) ? "linux" : "other";
+      groups[k].push(a);
+    }
+    const label = { windows: "Windows", macos: "macOS", linux: "Linux", other: "Other files" };
+    status.innerHTML = `<p>Latest release: <a href="${rel.html_url}">${rel.name || rel.tag_name}</a> · ${new Date(rel.published_at).toLocaleDateString()}</p>`;
+    for (const k of ["windows", "macos", "linux", "other"]) {
+      if (!groups[k].length && k === "other") continue;
+      const div = document.createElement("div");
+      div.className = "dl" + (k === mine ? " recommended" : "");
+      const files = groups[k].length
+        ? groups[k].map(a => `<a href="${a.browser_download_url}">${a.name}</a> <span class="muted">${(a.size/1048576).toFixed(1)} MB</span>`).join("<br>")
+        : `<span class="muted">No build for this platform in this release.</span>`;
+      div.innerHTML = `<div class="os">${label[k]}${k === mine ? ' <span class="pill done">Your system</span>' : ""}</div><div class="files">${files}</div>`;
+      grid.appendChild(div);
+    }
+    grid.hidden = false;
+  } catch (e) {
+    status.innerHTML = "<p>Couldn't reach GitHub. See the <a href=\"https://github.com/sayovc/Atlas-Launcher/releases\">releases page</a> directly.</p>";
+  }
+})();
+</script>
+
+</main>
+<footer><div class="wrap">
+<div>© <span data-year>2026</span> Atlas Launcher · MIT licensed<br>Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</div>
+<ul><li><a href="download.html">Download</a></li><li><a href="faq.html">FAQ</a></li><li><a href="terms.html">Terms</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="https://github.com/sayovc/Atlas-Launcher">Source</a></li><li><a href="#" data-discord hidden>Discord</a></li></ul>
+</div></footer>
+</body>
+</html>

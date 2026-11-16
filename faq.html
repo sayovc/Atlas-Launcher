@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FAQ — Atlas Launcher</title>
+<meta name="description" content="Frequently asked questions about Atlas Launcher.">
+<meta name="theme-color" content="#0c0f14">
+<meta property="og:title" content="FAQ — Atlas Launcher">
+<meta property="og:description" content="Frequently asked questions about Atlas Launcher.">
+<meta property="og:image" content="assets/home.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<header class="nav"><div class="wrap">
+<a class="brand" href="index.html"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke="#3fd0c0" stroke-width="2"/><ellipse cx="16" cy="16" rx="5" ry="12" transform="rotate(-24 16 16)" stroke="#3fd0c0" stroke-opacity=".8" stroke-width="1.6"/><ellipse cx="16" cy="16" rx="12" ry="4.2" transform="rotate(-24 16 16)" stroke="#3fd0c0" stroke-opacity=".8" stroke-width="1.6"/><circle cx="23.5" cy="8.5" r="2" fill="#3fd0c0"/></svg>ATLAS</a>
+<button class="menu-btn" aria-expanded="false" aria-label="Menu">Menu</button>
+<ul><li><a href="index.html">Home</a></li><li><a href="download.html">Download</a></li><li><a href="faq.html" aria-current="page">FAQ</a></li><li><a href="https://github.com/sayovc/Atlas-Launcher">GitHub</a></li><li><a href="#" data-discord hidden>Discord</a></li></ul>
+</div></header>
+<main>
+<div class="page"><div class="wrap"><div class="prose"><h1>Frequently asked questions</h1><p class="meta">Can't find your answer? Ask on <a href="https://github.com/sayovc/Atlas-Launcher/issues">GitHub</a>.</p><details><summary>Is Atlas free?</summary><p>Yes. Atlas is free and open source under the MIT license.</p></details><details><summary>Do I need to own Minecraft?</summary><p>Yes. Atlas is a launcher, not a copy of the game. To play you need Minecraft: Java Edition on a Microsoft account that owns it. Atlas includes no Mojang game files; it downloads them from Mojang's official servers or reuses files you already have.</p></details><details><summary>Is Atlas official?</summary><p>No. Atlas is an independent project. It isn't made, approved or supported by Mojang or Microsoft, and it isn't affiliated with any other launcher.</p></details><details><summary>Can Atlas launch the game yet?</summary><p>Not yet. Atlas is in pre-alpha. The app shell, settings, logs and command line work today; installing versions comes in Phase 2, and signing in and launching come in Phase 3. The app shows a feature as available only once it really works.</p></details><details><summary>Does Atlas see my Microsoft password?</summary><p>No. Once sign-in is available, you will sign in on Microsoft's own page in your web browser. Atlas only receives a token, which is kept in your operating system's secure credential store (Windows Credential Manager, macOS Keychain, or Secret Service on Linux), never in a plain file.</p></details><details><summary>Will Atlas touch my existing Minecraft folder?</summary><p>Atlas keeps all of its data in its own folder. It may read your existing Minecraft folder to reuse files it can verify, but it never writes to or deletes from another launcher's folders.</p></details><details><summary>Do Fabric, Forge or NeoForge mods work?</summary><p>Mod management is planned for Phase 4. Atlas will always be clear about which mods a given installation can actually run.</p></details><details><summary>Does Atlas collect data about me?</summary><p>No. Atlas has no telemetry, analytics or ads. See the <a href="privacy.html">privacy policy</a>.</p></details><details><summary>Where does Atlas store its files?</summary><p>In your platform's standard app-data folder: <code>%APPDATA%\\AtlasLauncher</code> on Windows, <code>~/Library/Application Support/AtlasLauncher</code> on macOS, and <code>~/.local/share/atlaslauncher</code> on Linux. You can move it from Settings → Advanced.</p></details><details><summary>How can I help?</summary><p>Report bugs or suggest features on <a href="https://github.com/sayovc/Atlas-Launcher/issues">GitHub Issues</a>, or contribute code by pull request.</p></details></div></div></div>
+</main>
+<footer><div class="wrap">
+<div>© <span data-year>2026</span> Atlas Launcher · MIT licensed<br>Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</div>
+<ul><li><a href="download.html">Download</a></li><li><a href="faq.html">FAQ</a></li><li><a href="terms.html">Terms</a></li><li><a href="privacy.html">Privacy</a></li><li><a href="https://github.com/sayovc/Atlas-Launcher">Source</a></li><li><a href="#" data-discord hidden>Discord</a></li></ul>
+</div></footer>
+</body>
+</html>
