@@ -69,6 +69,9 @@ pub struct AtlasApp {
     pub logs_page: pages::logs::LogsPage,
     pub versions_page: pages::versions::VersionsPage,
     pub installations_page: pages::installations::InstallationsPage,
+    pub servers_page: pages::servers::ServersPage,
+    pub mods_page: pages::mods::ModsPage,
+    pub worlds_page: pages::worlds::WorldsPage,
     pub server_addr: String,
     was_running: bool,
     applied_scale: f32,
@@ -89,6 +92,9 @@ impl AtlasApp {
             logs_page: pages::logs::LogsPage::default(),
             versions_page: pages::versions::VersionsPage::default(),
             installations_page: Default::default(),
+            servers_page: Default::default(),
+            mods_page: Default::default(),
+            worlds_page: Default::default(),
             server_addr: String::new(),
             was_running: false,
             atlas,
@@ -271,7 +277,9 @@ impl eframe::App for AtlasApp {
                     Page::Versions => pages::versions::show(self, ui),
                     Page::Installations => pages::installations::show(self, ui),
                     Page::Downloads => pages::downloads::show(self, ui),
-                    other => pages::placeholder::show(self, ui, other),
+                    Page::Servers => pages::servers::show(self, ui),
+                    Page::Mods => pages::mods::show(self, ui),
+                    Page::Worlds => pages::worlds::show(self, ui),
                 }
             });
         // Keep the live log view and status fresh without busy-looping.

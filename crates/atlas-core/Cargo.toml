@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 atlas-auth = { version = "0.1.0", path = "../atlas-auth" }
 atlas-config = { version = "0.1.0", path = "../atlas-config" }
+atlas-content = { version = "0.1.0", path = "../atlas-content" }
 atlas-downloads = { version = "0.1.0", path = "../atlas-downloads" }
 atlas-instances = { version = "0.1.0", path = "../atlas-instances" }
 atlas-launch = { version = "0.1.0", path = "../atlas-launch" }

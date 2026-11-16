@@ -35,18 +35,20 @@ use tokio::io::AsyncWriteExt;
 pub enum Checksum {
     Sha1(String),
     Sha256(String),
+    Sha512(String),
 }
 
 impl Checksum {
     pub fn hex(&self) -> &str {
         match self {
-            Self::Sha1(h) | Self::Sha256(h) => h,
+            Self::Sha1(h) | Self::Sha256(h) | Self::Sha512(h) => h,
         }
     }
     fn hasher(&self) -> Hasher {
         match self {
             Self::Sha1(_) => Hasher::Sha1(sha1::Sha1::new()),
             Self::Sha256(_) => Hasher::Sha256(sha2::Sha256::new()),
+            Self::Sha512(_) => Hasher::Sha512(sha2::Sha512::new()),
         }
     }
 }
@@ -54,6 +56,7 @@ impl Checksum {
 enum Hasher {
     Sha1(sha1::Sha1),
     Sha256(sha2::Sha256),
+    Sha512(sha2::Sha512),
 }
 
 impl Hasher {
@@ -61,12 +64,14 @@ impl Hasher {
         match self {
             Self::Sha1(h) => h.update(b),
             Self::Sha256(h) => h.update(b),
+            Self::Sha512(h) => h.update(b),
         }
     }
     fn finish(self) -> String {
         match self {
             Self::Sha1(h) => hex::encode(h.finalize()),
             Self::Sha256(h) => hex::encode(h.finalize()),
+            Self::Sha512(h) => hex::encode(h.finalize()),
         }
     }
 }

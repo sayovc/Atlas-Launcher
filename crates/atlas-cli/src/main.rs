@@ -92,6 +92,37 @@ enum Command {
     },
     /// Stop a running game.
     Stop { id: Option<String> },
+    /// Your server list.
+    Servers {
+        #[command(subcommand)]
+        cmd: Option<ServerCmd>,
+    },
+    /// Mods in an installation (the selected one unless --instance is given).
+    Mods {
+        #[arg(long, global = true)]
+        instance: Option<String>,
+        #[command(subcommand)]
+        cmd: Option<ModCmd>,
+    },
+    /// Resource packs and shader packs.
+    Packs {
+        #[arg(long, global = true)]
+        instance: Option<String>,
+        /// resource or shader
+        #[arg(long, global = true, default_value = "resource")]
+        kind: String,
+        #[command(subcommand)]
+        cmd: Option<PackCmd>,
+    },
+    /// Worlds in an installation.
+    Worlds {
+        #[arg(long, global = true)]
+        instance: Option<String>,
+        #[command(subcommand)]
+        cmd: Option<WorldCmd>,
+    },
+    /// Import a Modrinth modpack (.mrpack) as a new installation.
+    Import { pack: PathBuf },
     /// Show launcher logs.
     Logs {
         /// Minimum level: trace, debug, info, warn, error.
@@ -106,6 +137,65 @@ enum Command {
         /// Maximum number of most recent records.
         #[arg(long, short = 'n', default_value_t = 200)]
         limit: usize,
+    },
+}
+
+#[derive(Subcommand)]
+enum ServerCmd {
+    List,
+    Add { name: String, address: String },
+    Edit {
+        id: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        address: Option<String>,
+    },
+    Remove {
+        id: String,
+        #[arg(long)]
+        yes: bool,
+    },
+    Favorite { id: String, #[arg(long)] off: bool },
+    /// Show status, players and version (works with a saved id or any address).
+    Ping { target: String },
+    /// Launch the selected installation and join this server.
+    Connect { id: String },
+}
+
+#[derive(Subcommand)]
+enum ModCmd {
+    List,
+    Enable { file: String },
+    Disable { file: String },
+    Add { path: PathBuf },
+    Remove {
+        file: String,
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum PackCmd {
+    List,
+    Add { path: PathBuf },
+    Remove {
+        file: String,
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum WorldCmd {
+    List,
+    Backup { folder: String },
+    /// Delete a world. A backup zip is always written first.
+    Delete {
+        folder: String,
+        #[arg(long)]
+        yes: bool,
     },
 }
 
@@ -469,6 +559,133 @@ fn run(cli: Cli) -> AtlasResult<Output> {
             atlas.stop(id.as_deref())?;
             Output { data: json!({ "stopping": true }), human: "Asked the game to quit.".into() }
         }
+        Command::Servers { cmd } => match cmd.unwrap_or(ServerCmd::List) {
+            ServerCmd::List => {
+                let list = atlas.servers()?;
+                let human = if list.is_empty() {
+                    "No servers yet. Try: atlas servers add \"My server\" play.example.net".into()
+                } else {
+                    list.iter().map(|s| format!("{} {:<10} {:<24} {:<28} {}", if s.favorite { "★" } else { " " }, s.id, s.name, s.host_port(), s.version.as_deref().unwrap_or(""))).collect::<Vec<_>>().join("\n")
+                };
+                Output { data: to_value(&list), human }
+            }
+            ServerCmd::Add { name, address } => {
+                let s = atlas.add_server(&name, &address)?;
+                Output { human: format!("Added {} ({}).", s.name, s.id), data: to_value(&s) }
+            }
+            ServerCmd::Edit { id, name, address } => {
+                let s = atlas.edit_server(&id, name.as_deref(), address.as_deref())?;
+                Output { human: "Saved.".into(), data: to_value(&s) }
+            }
+            ServerCmd::Remove { id, yes } => {
+                atlas.remove_server(&id, Confirmation::from_bool(yes))?;
+                Output { human: "Removed.".into(), data: json!({ "removed": id }) }
+            }
+            ServerCmd::Favorite { id, off } => {
+                let s = atlas.set_server_favorite(&id, !off)?;
+                Output { human: if s.favorite { "Starred.".into() } else { "Unstarred.".into() }, data: to_value(&s) }
+            }
+            ServerCmd::Ping { target } => {
+                let r = if atlas.servers()?.iter().any(|s| s.id == target) { atlas.ping_server(&target)? } else { atlas.ping_address(&target)? };
+                Output { human: format!("{}  ·  {}/{} players  ·  {}  ·  {} ms", r.motd, r.online, r.max, r.version, r.latency_ms), data: to_value(&r) }
+            }
+            ServerCmd::Connect { id } => {
+                atlas.connect_server(&id)?;
+                let st = atlas.wait_for_game();
+                if let atlas_core::GameState::Error { error } = st {
+                    return Err(error);
+                }
+                Output { human: "Game closed.".into(), data: json!({ "done": true }) }
+            }
+        },
+        Command::Mods { instance, cmd } => {
+            let inst = instance.as_deref();
+            match cmd.unwrap_or(ModCmd::List) {
+                ModCmd::List => {
+                    let list = atlas.mods(inst)?;
+                    let human = if list.is_empty() {
+                        "No mods in this installation.".into()
+                    } else {
+                        list.iter().map(|m| {
+                            let mut line = format!("{} {:<28} {:<10} {:<9} {}", if m.enabled { "+" } else { "-" }, m.name, m.version.as_deref().unwrap_or(""), m.loader.label(), m.file);
+                            if !m.missing.is_empty() {
+                                line.push_str(&format!("  (needs: {})", m.missing.join(", ")));
+                            }
+                            line
+                        }).collect::<Vec<_>>().join("\n") + "\n\nNote: Atlas doesn't install Fabric/Forge/NeoForge loaders yet, so these only load if you add a loader yourself."
+                    };
+                    Output { data: to_value(&list), human }
+                }
+                ModCmd::Enable { file } => {
+                    let f = atlas.set_mod_enabled(inst, &file, true)?;
+                    Output { human: format!("Enabled ({f})."), data: json!({ "file": f }) }
+                }
+                ModCmd::Disable { file } => {
+                    let f = atlas.set_mod_enabled(inst, &file, false)?;
+                    Output { human: format!("Disabled ({f})."), data: json!({ "file": f }) }
+                }
+                ModCmd::Add { path } => {
+                    let f = atlas.add_mod(inst, &path)?;
+                    Output { human: format!("Added {f}."), data: json!({ "file": f }) }
+                }
+                ModCmd::Remove { file, yes } => {
+                    atlas.remove_mod(inst, &file, Confirmation::from_bool(yes))?;
+                    Output { human: "Deleted.".into(), data: json!({ "removed": file }) }
+                }
+            }
+        }
+        Command::Packs { instance, kind, cmd } => {
+            let inst = instance.as_deref();
+            let kind = match kind.as_str() {
+                "resource" => atlas_core::PackKind::Resource,
+                "shader" => atlas_core::PackKind::Shader,
+                other => return Err(AtlasError::new(ErrorCode::InvalidArgument, format!("Unknown pack kind '{other}'.")).suggest("Use resource or shader.")),
+            };
+            match cmd.unwrap_or(PackCmd::List) {
+                PackCmd::List => {
+                    let list = atlas.packs(inst, kind)?;
+                    let human = if list.is_empty() { "No packs.".into() } else { list.iter().map(|p| format!("{:<36} {}", p.file, p.description.as_deref().unwrap_or(""))).collect::<Vec<_>>().join("\n") };
+                    Output { data: to_value(&list), human }
+                }
+                PackCmd::Add { path } => {
+                    let f = atlas.add_pack(inst, kind, &path)?;
+                    Output { human: format!("Added {f}."), data: json!({ "file": f }) }
+                }
+                PackCmd::Remove { file, yes } => {
+                    atlas.remove_pack(inst, kind, &file, Confirmation::from_bool(yes))?;
+                    Output { human: "Deleted.".into(), data: json!({ "removed": file }) }
+                }
+            }
+        }
+        Command::Worlds { instance, cmd } => {
+            let inst = instance.as_deref();
+            match cmd.unwrap_or(WorldCmd::List) {
+                WorldCmd::List => {
+                    let list = atlas.worlds(inst)?;
+                    let human = if list.is_empty() { "No worlds yet.".into() } else {
+                        list.iter().map(|w| format!("{:<26} {:<10} {:<8} {:>8}  {}", w.name, w.game_mode.as_deref().unwrap_or(""), w.version.as_deref().unwrap_or(""), human_bytes(w.size), w.folder)).collect::<Vec<_>>().join("\n")
+                    };
+                    Output { data: to_value(&list), human }
+                }
+                WorldCmd::Backup { folder } => {
+                    let p = atlas.backup_world(inst, &folder)?;
+                    Output { human: format!("Backed up to {}", p.display()), data: json!({ "backup": p }) }
+                }
+                WorldCmd::Delete { folder, yes } => {
+                    let p = atlas.delete_world(inst, &folder, Confirmation::from_bool(yes))?;
+                    Output { human: format!("Deleted. A backup was saved to {}", p.display()), data: json!({ "backup": p }) }
+                }
+            }
+        }
+        Command::Import { pack } => {
+            let summary = atlas.inspect_modpack(&pack)?;
+            let (inst, job) = atlas.import_modpack(&pack)?;
+            if !summary.loaders.is_empty() && !cli.json {
+                eprintln!("Heads up: this pack needs {} which Atlas can't install yet. Files are imported, but the mods won't load in plain Minecraft.", summary.loaders.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", "));
+            }
+            let out = run_job(&atlas, job, cli.json)?;
+            Output { human: format!("{}\nCreated installation {} ({}).", out.human, inst.name, inst.id), data: json!({ "installation": inst, "summary": summary }) }
+        }
         Command::Detect => {
             let found = atlas.detect_minecraft();
             let human = if found.is_empty() {
@@ -539,7 +756,7 @@ fn run_job(atlas: &Atlas, id: atlas_core::JobId, json: bool) -> AtlasResult<Outp
             let p = &snap.progress;
             let human = format!(
                 "{} {} in {:.1}s: {} downloaded, {} reused from other launchers, {} already valid.",
-                match snap.kind { atlas_core::JobKind::Install => "Installed", atlas_core::JobKind::Repair => "Repaired" },
+                match snap.kind { atlas_core::JobKind::Install => "Installed", atlas_core::JobKind::Repair => "Repaired", atlas_core::JobKind::Modpack => "Imported" },
                 snap.version, snap.elapsed_secs, p.downloaded_files, p.reused_files, p.already_valid_files
             );
             Ok(Output { data: to_value(&snap), human })

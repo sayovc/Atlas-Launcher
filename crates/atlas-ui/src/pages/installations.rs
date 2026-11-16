@@ -97,6 +97,19 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
             ui.label(RichText::new("Each one has its own version, game folder and settings.").color(theme::TEXT_DIM));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button("Import modpack…").on_hover_text("Modrinth .mrpack file").clicked()
+                && let Some(f) = rfd::FileDialog::new().add_filter("Modrinth pack", &["mrpack"]).pick_file()
+            {
+                match atlas.inspect_modpack(&f).and_then(|s| atlas.import_modpack(&f).map(|r| (s, r))) {
+                    Ok((s, (i, _))) => {
+                        infos.push(format!("Importing {} into a new installation \"{}\". Progress is on the Downloads page.", s.name, i.name));
+                        if !s.loaders.is_empty() {
+                            infos.push(format!("This pack needs {}. Atlas can't install mod loaders yet, so the mods won't load in plain Minecraft.", s.loaders.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", ")));
+                        }
+                    }
+                    Err(e) => errors.push(e),
+                }
+            }
             if widgets::primary_button(ui, "New installation", accent, true, egui::vec2(170.0, 38.0)).clicked() {
                 let ip = &mut app.installations_page;
                 ip.new_open = true;

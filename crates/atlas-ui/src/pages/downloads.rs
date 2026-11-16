@@ -61,7 +61,7 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
             let p = &j.progress;
             widgets::card(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(match j.kind { JobKind::Install => "Install", JobKind::Repair => "Repair" }).color(theme::TEXT_FAINT));
+                    ui.label(RichText::new(match j.kind { JobKind::Install => "Install", JobKind::Repair => "Repair", JobKind::Modpack => "Modpack" }).color(theme::TEXT_FAINT));
                     ui.label(RichText::new(&j.version).size(17.0).strong());
                     match &j.state {
                         JobState::Running => widgets::pill(ui, "Running", accent),

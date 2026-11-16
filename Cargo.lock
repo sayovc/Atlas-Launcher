@@ -367,11 +367,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-content"
+version = "0.1.0"
+dependencies = [
+ "atlas-downloads",
+ "atlas-shared",
+ "base64",
+ "flate2",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tracing",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "atlas-core"
 version = "0.1.0"
 dependencies = [
  "atlas-auth",
  "atlas-config",
+ "atlas-content",
  "atlas-downloads",
  "atlas-instances",
  "atlas-launch",
@@ -463,8 +482,10 @@ dependencies = [
  "atlas-core",
  "atlas-logging",
  "atlas-shared",
+ "base64",
  "eframe",
  "egui",
+ "image",
  "rfd",
  "tracing",
 ]

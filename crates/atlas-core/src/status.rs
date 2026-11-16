@@ -69,7 +69,7 @@ pub(crate) fn compute(atlas: &Atlas) -> StatusReport {
         game_state: atlas.game_state(),
         installed_versions: atlas.installed_versions().map(|v| v.len()).unwrap_or(0),
         version_update: atlas.version_update(),
-        unavailable: vec!["mods", "servers", "worlds", "self_update", "mcp"],
+        unavailable: vec!["self_update", "mcp"],
         warnings: atlas.startup_warnings().to_vec(),
     }
 }

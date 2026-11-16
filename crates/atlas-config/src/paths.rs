@@ -49,9 +49,10 @@ pub const MANAGED_SUBDIRS: &[&str] = &[
     "runtimes",
     "libraries",
     "assets",
+    "backups",
 ];
 /// Files in the data root that Atlas owns.
-pub const MANAGED_FILES: &[&str] = &["settings.toml"];
+pub const MANAGED_FILES: &[&str] = &["settings.toml", "servers.toml"];
 
 impl AtlasPaths {
     /// Resolve paths from env overrides, then `locator.toml`, then platform defaults.

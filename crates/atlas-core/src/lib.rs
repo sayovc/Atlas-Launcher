@@ -5,6 +5,7 @@
 //! logic of its own; they render [`Atlas`] state and forward user intent.
 
 mod accounts;
+mod content;
 mod data_root;
 mod play;
 mod status;
@@ -12,6 +13,7 @@ mod versions;
 
 pub use data_root::MoveReport;
 pub use play::PlayOptions;
+pub use atlas_content::{mods::{Loader, ModInfo}, mrpack::PackSummary, packs::{PackInfo, PackKind}, ping::PingResult, servers::Server, worlds::WorldInfo};
 pub use accounts::LoginState;
 pub use atlas_auth::{Account, DeviceCode};
 pub use atlas_instances::{Changes as InstallationChanges, Installation};

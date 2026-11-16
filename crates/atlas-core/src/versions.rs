@@ -16,6 +16,7 @@ pub type JobId = u64;
 pub enum JobKind {
     Install,
     Repair,
+    Modpack,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -174,7 +175,7 @@ impl Atlas {
         self.jobs.lock().unwrap_or_else(|p| p.into_inner())
     }
 
-    fn register_job(&self, kind: JobKind, version: &str) -> AtlasResult<(JobId, Arc<Progress>, CancellationToken)> {
+    pub(crate) fn register_job(&self, kind: JobKind, version: &str) -> AtlasResult<(JobId, Arc<Progress>, CancellationToken)> {
         let mut jobs = self.job_lock();
         if jobs.map.values().any(|j| j.version == version && j.state == JobState::Running) {
             return Err(AtlasError::new(ErrorCode::InvalidArgument, format!("Version '{version}' is already being installed or repaired."))
@@ -197,7 +198,7 @@ impl Atlas {
         Ok((id, progress, cancel))
     }
 
-    fn finish_job(jobs: &Mutex<Jobs>, id: JobId, result: AtlasResult<()>) {
+    pub(crate) fn finish_job(jobs: &Mutex<Jobs>, id: JobId, result: AtlasResult<()>) {
         let mut j = jobs.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(job) = j.map.get_mut(&id) {
             job.finished = Some(Instant::now());

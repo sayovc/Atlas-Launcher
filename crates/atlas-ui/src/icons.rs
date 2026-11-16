@@ -81,3 +81,26 @@ pub fn show(ui: &mut egui::Ui, page: Page, size: f32, color: Color32) {
     paint(ui.painter(), page, rect.center(), size, color);
 }
 
+
+/// Five-point star from triangles (egui only fills convex shapes).
+pub fn star(ui: &mut egui::Ui, filled: bool, color: Color32, size: f32) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), egui::Sense::click());
+    let c = rect.center();
+    let (ro, ri) = (size * 0.48, size * 0.2);
+    let pt = |i: usize, r: f32| {
+        let a = -std::f32::consts::FRAC_PI_2 + i as f32 * std::f32::consts::PI / 5.0;
+        c + vec2(a.cos() * r, a.sin() * r)
+    };
+    let outline: Vec<Pos2> = (0..10).map(|i| pt(i, if i % 2 == 0 { ro } else { ri })).collect();
+    let p = ui.painter();
+    if filled {
+        let inner: Vec<Pos2> = (0..5).map(|i| pt(i * 2 + 1, ri)).collect();
+        p.add(Shape::convex_polygon(inner, color, Stroke::NONE));
+        for i in 0..5 {
+            p.add(Shape::convex_polygon(vec![pt(i * 2, ro), pt(i * 2 + 1, ri), pt((i * 2 + 9) % 10, ri)], color, Stroke::NONE));
+        }
+    } else {
+        p.add(Shape::closed_line(outline, Stroke::new(1.2, color)));
+    }
+    resp
+}
