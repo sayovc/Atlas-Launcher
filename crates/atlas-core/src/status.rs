@@ -1,0 +1,73 @@
+use crate::Atlas;
+use atlas_shared::{AtlasError, ATLAS_VERSION};
+use serde::Serialize;
+
+/// The lifecycle state the Play button renders. Produced only by the backend.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum GameState {
+    /// No installation exists yet.
+    NoInstallation,
+    /// Installation exists but its game files are missing.
+    NotInstalled,
+    Installing { progress: f32 },
+    Preparing { progress: f32 },
+    Updating { progress: f32 },
+    Ready,
+    Launching,
+    Running { pid: u32 },
+    Stopping,
+    Error { error: AtlasError },
+}
+
+impl GameState {
+    /// Label for the primary action button.
+    pub fn action_label(&self) -> &'static str {
+        match self {
+            Self::NoInstallation => "Create installation",
+            Self::NotInstalled => "Install",
+            Self::Installing { .. } => "Installing…",
+            Self::Preparing { .. } => "Preparing…",
+            Self::Updating { .. } => "Updating…",
+            Self::Ready => "Play",
+            Self::Launching => "Launching…",
+            Self::Running { .. } => "Stop",
+            Self::Stopping => "Stopping…",
+            Self::Error { .. } => "Retry",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StatusReport {
+    pub atlas_version: &'static str,
+    pub data_root: std::path::PathBuf,
+    /// `None` until Microsoft sign-in exists (Phase 3).
+    pub account: Option<String>,
+    pub installation: Option<String>,
+    pub minecraft_version: Option<String>,
+    pub game_state: GameState,
+    /// Features whose backend is not built yet; front-ends show them as such.
+    pub unavailable: Vec<&'static str>,
+    pub warnings: Vec<AtlasError>,
+}
+
+pub(crate) fn compute(atlas: &Atlas) -> StatusReport {
+    let paths = atlas.paths();
+    let has_installation = std::fs::read_dir(paths.installations_dir())
+        .map(|mut rd| rd.any(|e| e.is_ok_and(|e| e.path().join("installation.toml").is_file())))
+        .unwrap_or(false);
+    StatusReport {
+        atlas_version: ATLAS_VERSION,
+        data_root: paths.data_root,
+        account: None,
+        installation: None,
+        minecraft_version: None,
+        // Phase 1 has no installation service; with none on disk the honest
+        // state is NoInstallation. An installation.toml written by a future
+        // version is reported as NotInstalled rather than guessed Ready.
+        game_state: if has_installation { GameState::NotInstalled } else { GameState::NoInstallation },
+        unavailable: vec!["accounts", "installations", "versions", "launch", "mods", "servers", "worlds", "updates", "mcp"],
+        warnings: atlas.startup_warnings().to_vec(),
+    }
+}

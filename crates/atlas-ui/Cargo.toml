@@ -1,0 +1,22 @@
+[package]
+name = "atlas-ui"
+description = "Atlas Launcher desktop interface"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+atlas-config = { version = "0.1.0", path = "../atlas-config" }
+atlas-core = { version = "0.1.0", path = "../atlas-core" }
+atlas-logging = { version = "0.1.0", path = "../atlas-logging" }
+atlas-shared = { version = "0.1.0", path = "../atlas-shared" }
+eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
+egui = "0.37.0"
+rfd = "0.18.0"
+tracing = "0.1.44"
+
+[[bin]]
+name = "atlas-launcher"
+path = "src/main.rs"
+
+[lints]
+workspace = true
