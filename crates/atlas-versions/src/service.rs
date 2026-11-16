@@ -221,6 +221,7 @@ impl VersionService {
             release_time: Some(entry.release_time.clone()),
             installed_at: unix_now(),
             java_major: v.java_version.as_ref().map(|j| j.major_version),
+            java_component: v.java_version.as_ref().and_then(|j| j.component.clone()),
             main_class: v.main_class.clone(),
             asset_index: v.asset_index.id.clone(),
             files: recorded,

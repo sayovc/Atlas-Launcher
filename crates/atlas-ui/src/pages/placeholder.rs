@@ -7,8 +7,6 @@ use egui::RichText;
 
 fn plan(page: Page) -> (&'static str, &'static str, &'static [&'static str]) {
     match page {
-        Page::Installations => ("Phase 3", "Independent installations, each with its own game folder, version, memory and launch arguments.",
-            &["Create, rename, duplicate, repair, update", "Delete only Atlas-owned folders, with confirmation", "Per-installation Java and memory settings"]),
         Page::Mods => ("Phase 4", "Manage mods and resource packs per installation.",
             &["Enable / disable local mod files", "Compatibility and dependency info", "Modpack and resource pack import"]),
         Page::Servers => ("Phase 4", "Your server list, connected through the selected installation.",

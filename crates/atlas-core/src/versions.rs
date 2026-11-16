@@ -106,6 +106,14 @@ impl Atlas {
         VersionService::new(self.paths().data_root, sources_from_env(), reuse)
     }
 
+    pub(crate) fn version_service_pub(&self) -> VersionService {
+        self.version_service()
+    }
+
+    pub(crate) fn downloader_pub(&self) -> AtlasResult<Downloader> {
+        self.downloader()
+    }
+
     fn downloader(&self) -> AtlasResult<Downloader> {
         let s = self.settings();
         Downloader::new(DownloaderConfig {

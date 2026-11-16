@@ -52,8 +52,23 @@ impl Platform {
     }
 }
 
+/// Launch-time feature flags (`is_demo_user`, `has_custom_resolution`, ...).
+pub type Features<'a> = &'a [(&'a str, bool)];
+
+fn features_match(r: &Rule, features: Features) -> bool {
+    let Some(want) = r.features.as_ref().and_then(|f| f.as_object()) else { return true };
+    want.iter().all(|(k, v)| {
+        let have = features.iter().find(|(n, _)| n == k).map(|(_, b)| *b).unwrap_or(false);
+        v.as_bool() == Some(have)
+    })
+}
+
 fn rule_matches(r: &Rule, p: Platform) -> bool {
-    if r.features.is_some() {
+    rule_matches_with(r, p, &[])
+}
+
+fn rule_matches_with(r: &Rule, p: Platform, features: Features) -> bool {
+    if !features_match(r, features) {
         return false;
     }
     if let Some(os) = &r.os {
@@ -65,6 +80,20 @@ fn rule_matches(r: &Rule, p: Platform) -> bool {
         }
     }
     true
+}
+
+/// Same as [`allowed`] but with launch features switched on or off.
+pub fn allowed_with(rules: &[Rule], p: Platform, features: Features) -> bool {
+    if rules.is_empty() {
+        return true;
+    }
+    let mut ok = false;
+    for r in rules {
+        if rule_matches_with(r, p, features) {
+            ok = r.action == Action::Allow;
+        }
+    }
+    ok
 }
 
 /// Mojang semantics: no rules = allowed; otherwise start disallowed and let

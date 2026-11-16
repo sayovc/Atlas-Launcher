@@ -68,6 +68,9 @@ pub struct AtlasApp {
     pub settings_page: pages::settings::SettingsPage,
     pub logs_page: pages::logs::LogsPage,
     pub versions_page: pages::versions::VersionsPage,
+    pub installations_page: pages::installations::InstallationsPage,
+    pub server_addr: String,
+    was_running: bool,
     applied_scale: f32,
 }
 
@@ -85,6 +88,9 @@ impl AtlasApp {
             settings_page: pages::settings::SettingsPage::new(&atlas),
             logs_page: pages::logs::LogsPage::default(),
             versions_page: pages::versions::VersionsPage::default(),
+            installations_page: Default::default(),
+            server_addr: String::new(),
+            was_running: false,
             atlas,
             page: Page::from_env().unwrap_or(Page::Home),
             page_changed_at: Instant::now(),
@@ -221,9 +227,21 @@ impl eframe::App for AtlasApp {
             ctx.set_zoom_factor(settings.appearance.ui_scale);
             self.applied_scale = settings.appearance.ui_scale;
         }
-        if self.status_at.elapsed() > Duration::from_secs(2) {
+        // poll faster while something is happening so the button keeps up
+        let active = !matches!(self.status.game_state, atlas_core::GameState::Ready | atlas_core::GameState::NoInstallation | atlas_core::GameState::NotInstalled);
+        if self.status_at.elapsed() > Duration::from_millis(if active { 300 } else { 1500 }) {
             self.refresh_status();
         }
+        // "after launching" setting
+        let running = matches!(self.status.game_state, atlas_core::GameState::Running { .. });
+        if running && !self.was_running {
+            match settings.general.after_launch {
+                atlas_config::settings::AfterLaunch::Minimize => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                atlas_config::settings::AfterLaunch::Close => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                atlas_config::settings::AfterLaunch::KeepOpen => {}
+            }
+        }
+        self.was_running = running;
         self.settings_page.poll(&self.atlas, &mut self.notices);
 
         egui::Panel::left("nav")
@@ -251,6 +269,7 @@ impl eframe::App for AtlasApp {
                     Page::Settings => pages::settings::show(self, ui),
                     Page::Logs => pages::logs::show(self, ui),
                     Page::Versions => pages::versions::show(self, ui),
+                    Page::Installations => pages::installations::show(self, ui),
                     Page::Downloads => pages::downloads::show(self, ui),
                     other => pages::placeholder::show(self, ui, other),
                 }

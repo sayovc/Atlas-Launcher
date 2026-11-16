@@ -2,6 +2,7 @@ use crate::app::{AtlasApp, Notice};
 use crate::{theme, widgets};
 use atlas_config::settings::{Accent, AfterLaunch, LogLevel, Settings, UpdateChannel};
 use atlas_core::{Atlas, Confirmation, MoveReport};
+
 use atlas_shared::AtlasResult;
 use egui::RichText;
 use std::path::PathBuf;
@@ -56,6 +57,10 @@ pub struct SettingsPage {
 }
 
 impl SettingsPage {
+    pub fn open_accounts(&mut self) {
+        self.tab = Tab::Accounts;
+    }
+
     pub fn new(atlas: &Atlas) -> Self {
         let mut p = Self {
             tab: Tab::General,
@@ -125,13 +130,93 @@ fn row(ui: &mut egui::Ui, label: &str, help: &str, add: impl FnOnce(&mut egui::U
     ui.add_space(10.0);
 }
 
-fn not_built(ui: &mut egui::Ui, what: &str) {
-    ui.horizontal(|ui| {
-        widgets::pill(ui, "Not built yet", theme::WARN);
-        ui.label(RichText::new(what).color(theme::TEXT_DIM));
-    });
-    ui.add_space(8.0);
+fn accounts_tab(ui: &mut egui::Ui, atlas: &Atlas, accent: egui::Color32, errors: &mut Vec<atlas_shared::AtlasError>) {
+    use atlas_core::LoginState;
+    let accounts = atlas.accounts().unwrap_or_default();
+    let active = atlas.active_account().map(|a| a.id);
+    if accounts.is_empty() {
+        ui.label(RichText::new("No accounts yet. Without one, games start in demo mode.").color(theme::TEXT_DIM));
+    }
+    for a in &accounts {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(&a.name).strong());
+            if active.as_deref() == Some(a.id.as_str()) {
+                widgets::pill(ui, "Playing as", accent);
+            } else if ui.small_button("Use").clicked()
+                && let Err(e) = atlas.set_active_account(&a.id)
+            {
+                errors.push(e);
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button(RichText::new("Sign out").color(theme::ERR)).clicked()
+                    && let Err(e) = atlas.remove_account(&a.id)
+                {
+                    errors.push(e);
+                }
+            });
+        });
+    }
+    ui.add_space(10.0);
+    if !atlas.sign_in_available() {
+        widgets::pill(ui, "Sign-in not set up in this build", theme::WARN);
+        ui.label(RichText::new("This build doesn't have a Microsoft app id yet, so only demo mode is available.").small().color(theme::TEXT_FAINT));
+        return;
+    }
+    match atlas.login_state() {
+        LoginState::Browser { url } => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Finish signing in in your browser…");
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Copy link").clicked() {
+                    ui.ctx().copy_text(url.clone());
+                }
+                if ui.button("Cancel").clicked() {
+                    atlas.cancel_login();
+                }
+            });
+        }
+        LoginState::Device { code, url } => {
+            ui.label(format!("Go to {url} and enter this code:"));
+            ui.label(RichText::new(&code).monospace().size(26.0).strong().color(accent));
+            ui.horizontal(|ui| {
+                if ui.button("Copy code").clicked() {
+                    ui.ctx().copy_text(code.clone());
+                }
+                if ui.button("Cancel").clicked() {
+                    atlas.cancel_login();
+                }
+            });
+        }
+        state => {
+            if let LoginState::Failed { error } = &state {
+                ui.label(RichText::new(&error.message).color(theme::ERR));
+                if !error.suggestion.is_empty() {
+                    ui.label(RichText::new(&error.suggestion).small().color(theme::TEXT_DIM));
+                }
+            }
+            if let LoginState::Done { account } = &state {
+                ui.label(RichText::new(format!("Signed in as {}.", account.name)).color(theme::OK));
+            }
+            ui.horizontal(|ui| {
+                if widgets::primary_button(ui, "Sign in with Microsoft", accent, true, egui::vec2(220.0, 36.0)).clicked()
+                    && let Err(e) = atlas.start_browser_login()
+                {
+                    errors.push(e);
+                }
+                if ui.button("Use a code instead").clicked()
+                    && let Err(e) = atlas.start_device_login()
+                {
+                    errors.push(e);
+                }
+            });
+        }
+    }
+    ui.add_space(6.0);
+    ui.label(RichText::new("You sign in on Microsoft's page. Atlas never sees your password, and tokens stay in your system's keychain.").small().color(theme::TEXT_FAINT));
 }
+
 
 pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
     widgets::page_header(ui, "Settings", "Saved to settings.toml in your Atlas data folder.");
@@ -157,6 +242,7 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
     ui.add_space(10.0);
 
     let dirty = sp.assembled() != saved;
+    let mut account_errors: Vec<atlas_shared::AtlasError> = vec![];
     let mut action: Option<&'static str> = None;
 
     egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(ui.available_height() - 56.0).show(ui, |ui| {
@@ -260,14 +346,12 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                     }
                 }
                 Tab::Installations => {
-                    not_built(ui, "Installation management arrives in Phase 3.");
                     row(ui, "Show snapshot versions", "Include development snapshots in version lists.", |ui| {
                         ui.checkbox(&mut d.installations.show_snapshots, "");
                     });
                 }
                 Tab::Accounts => {
-                    not_built(ui, "Microsoft sign-in arrives in Phase 3.");
-                    ui.label(RichText::new("Sign-in will happen in your web browser. Atlas never asks for your password, and tokens are kept in your system's secure credential store, never in plain files.").color(theme::TEXT_DIM));
+                    accounts_tab(ui, &atlas, accent, &mut account_errors);
                 }
                 Tab::Privacy => {
                     row(ui, "Hide username in log files", "Replaces your in-game name in saved logs.", |ui| {
@@ -413,5 +497,8 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
             sp.moving = Some(rx);
         }
         None => {}
+    }
+    for e in account_errors {
+        app.push_error(e);
     }
 }

@@ -28,6 +28,8 @@ pub struct InstallRecord {
     pub release_time: Option<String>,
     pub installed_at: u64,
     pub java_major: Option<u32>,
+    #[serde(default)]
+    pub java_component: Option<String>,
     pub main_class: String,
     pub asset_index: String,
     pub files: Vec<RecordedFile>,

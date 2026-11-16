@@ -69,6 +69,29 @@ enum Command {
     },
     /// Find existing Minecraft folders Atlas can reuse verified files from (read-only).
     Detect,
+    /// List and manage installations.
+    Instances {
+        #[command(subcommand)]
+        cmd: Option<InstCmd>,
+    },
+    /// Microsoft accounts: list, login, logout, use.
+    Account {
+        #[command(subcommand)]
+        cmd: Option<AccountCmd>,
+    },
+    /// Start the game. Installs the version and Java first if needed.
+    Play {
+        /// Installation id (defaults to the selected one).
+        id: Option<String>,
+        /// Join a server right away, e.g. play.example.net:25565
+        #[arg(long)]
+        server: Option<String>,
+        /// Return as soon as the game has started instead of waiting for it to exit.
+        #[arg(long)]
+        detach: bool,
+    },
+    /// Stop a running game.
+    Stop { id: Option<String> },
     /// Show launcher logs.
     Logs {
         /// Minimum level: trace, debug, info, warn, error.
@@ -84,6 +107,61 @@ enum Command {
         #[arg(long, short = 'n', default_value_t = 200)]
         limit: usize,
     },
+}
+
+#[derive(Subcommand)]
+enum AccountCmd {
+    List,
+    /// Sign in with Microsoft (opens your browser).
+    Login {
+        /// Use a code you type in on another device instead of a browser redirect.
+        #[arg(long)]
+        device: bool,
+    },
+    /// Sign out and delete this account's saved tokens.
+    Logout { id: String },
+    /// Play with this account from now on.
+    Use { id: String },
+}
+
+#[derive(Subcommand)]
+enum InstCmd {
+    /// List installations.
+    List,
+    /// Create one, e.g. `atlas instances create Survival --version latest`.
+    Create {
+        name: String,
+        #[arg(long, default_value = "latest")]
+        version: String,
+        /// Use an existing folder as the game folder (it will never be deleted by Atlas).
+        #[arg(long)]
+        dir: Option<PathBuf>,
+    },
+    Rename { id: String, name: String },
+    /// Change settings of one installation.
+    Set {
+        id: String,
+        #[arg(long)]
+        version: Option<String>,
+        #[arg(long)]
+        memory_min: Option<u32>,
+        #[arg(long)]
+        memory_max: Option<u32>,
+        /// Extra JVM argument (repeatable). Replaces the current list.
+        #[arg(long = "jvm-arg")]
+        jvm_args: Vec<String>,
+        #[arg(long)]
+        java: Option<PathBuf>,
+    },
+    Duplicate { id: String },
+    /// Delete an installation (its managed game folder and worlds too).
+    Delete {
+        id: String,
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Make this the installation Play uses.
+    Select { id: String },
 }
 
 #[derive(Subcommand)]
@@ -278,6 +356,118 @@ fn run(cli: Cli) -> AtlasResult<Output> {
         Command::Remove { version, yes } => {
             atlas.remove_version(&version, Confirmation::from_bool(yes))?;
             Output { data: json!({ "removed": version }), human: format!("Removed {version}. Shared libraries and assets were kept.") }
+        }
+        Command::Account { cmd } => match cmd.unwrap_or(AccountCmd::List) {
+            AccountCmd::List => {
+                let list = atlas.accounts()?;
+                let active = atlas.active_account().map(|a| a.id);
+                let human = if list.is_empty() {
+                    if atlas.sign_in_available() { "No accounts. Try: atlas account login".into() } else { "No accounts. (Sign-in isn't set up in this build yet; you can still play the demo.)".into() }
+                } else {
+                    list.iter().map(|a| format!("{} {}  {}", if Some(&a.id) == active.as_ref() { "*" } else { " " }, a.name, a.id)).collect::<Vec<_>>().join("\n")
+                };
+                Output { data: to_value(&list), human }
+            }
+            AccountCmd::Login { device } => {
+                if device {
+                    let dc = atlas.start_device_login()?;
+                    eprintln!("Go to {} and enter the code {}", dc.verification_uri, dc.user_code);
+                } else {
+                    let url = atlas.start_browser_login()?;
+                    eprintln!("Your browser should open. If it doesn't, open this link:\n{url}");
+                }
+                loop {
+                    match atlas.login_state() {
+                        atlas_core::LoginState::Done { account } => break Output { human: format!("Signed in as {}.", account.name), data: to_value(&account) },
+                        atlas_core::LoginState::Failed { error } => return Err(error),
+                        atlas_core::LoginState::Idle => return Err(AtlasError::cancelled()),
+                        _ => std::thread::sleep(std::time::Duration::from_millis(300)),
+                    }
+                }
+            }
+            AccountCmd::Logout { id } => {
+                atlas.remove_account(&id)?;
+                Output { data: json!({ "removed": id }), human: "Signed out.".into() }
+            }
+            AccountCmd::Use { id } => {
+                atlas.set_active_account(&id)?;
+                Output { data: json!({ "active": id }), human: "Done.".into() }
+            }
+        },
+        Command::Instances { cmd } => match cmd.unwrap_or(InstCmd::List) {
+            InstCmd::List => {
+                let list = atlas.installations()?;
+                let sel = atlas.selected_installation().map(|i| i.id);
+                let human = if list.is_empty() {
+                    "No installations yet. Try: atlas instances create Survival".into()
+                } else {
+                    list.iter().map(|i| format!("{} {:<14} {:<24} {}", if Some(&i.id) == sel.as_ref() { "*" } else { " " }, i.id, i.name, i.version)).collect::<Vec<_>>().join("\n")
+                };
+                Output { data: to_value(&list), human }
+            }
+            InstCmd::Create { name, version, dir } => {
+                let i = atlas.create_installation(&name, &version, dir)?;
+                Output { human: format!("Created {} ({}) for Minecraft {}.", i.name, i.id, i.version), data: to_value(&i) }
+            }
+            InstCmd::Rename { id, name } => {
+                let i = atlas.update_installation(&id, atlas_core::InstallationChanges { name: Some(name), ..Default::default() })?;
+                Output { human: format!("Renamed to {}.", i.name), data: to_value(&i) }
+            }
+            InstCmd::Set { id, version, memory_min, memory_max, jvm_args, java } => {
+                let ch = atlas_core::InstallationChanges {
+                    version,
+                    memory_min_mb: memory_min.map(Some),
+                    memory_max_mb: memory_max.map(Some),
+                    jvm_args: (!jvm_args.is_empty()).then_some(jvm_args),
+                    java_path: java.map(Some),
+                    ..Default::default()
+                };
+                let i = atlas.update_installation(&id, ch)?;
+                Output { human: format!("Updated {}.", i.name), data: to_value(&i) }
+            }
+            InstCmd::Duplicate { id } => {
+                let i = atlas.duplicate_installation(&id)?;
+                Output { human: format!("Created {} ({}).", i.name, i.id), data: to_value(&i) }
+            }
+            InstCmd::Delete { id, yes } => {
+                let kept = atlas.delete_installation(&id, Confirmation::from_bool(yes))?;
+                let human = match &kept {
+                    Some(d) => format!("Deleted. Your own game folder {} was left untouched.", d.display()),
+                    None => "Deleted.".into(),
+                };
+                Output { data: json!({ "deleted": id, "kept_game_dir": kept }), human }
+            }
+            InstCmd::Select { id } => {
+                atlas.select_installation(&id)?;
+                Output { data: json!({ "selected": id }), human: "Selected.".into() }
+            }
+        },
+        Command::Play { id, server, detach } => {
+            atlas.play(id.as_deref(), atlas_core::PlayOptions { server })?;
+            let mut last = String::new();
+            loop {
+                let st = atlas.game_state();
+                let label = format!("{st:?}");
+                if !cli.json && label != last && !matches!(st, atlas_core::GameState::Installing { .. } | atlas_core::GameState::Preparing { .. }) {
+                    eprintln!("{}", st.action_label().trim_end_matches('…'));
+                    last = label;
+                }
+                match st {
+                    atlas_core::GameState::Running { pid } if detach => {
+                        break Output { data: json!({ "running": true, "pid": pid }), human: format!("Game started (pid {pid}).") };
+                    }
+                    atlas_core::GameState::Error { error } => return Err(error),
+                    _ => {}
+                }
+                if let Some(x) = atlas.last_exit() {
+                    break Output { human: format!("Game exited (code {}).", x.code.map(|c| c.to_string()).unwrap_or("?".into())), data: to_value(&x) };
+                }
+                std::thread::sleep(std::time::Duration::from_millis(300));
+            }
+        }
+        Command::Stop { id } => {
+            atlas.stop(id.as_deref())?;
+            Output { data: json!({ "stopping": true }), human: "Asked the game to quit.".into() }
         }
         Command::Detect => {
             let found = atlas.detect_minecraft();

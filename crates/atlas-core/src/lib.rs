@@ -4,11 +4,18 @@
 //! hold an [`Atlas`] and call its methods. No front-end contains business
 //! logic of its own; they render [`Atlas`] state and forward user intent.
 
+mod accounts;
 mod data_root;
+mod play;
 mod status;
 mod versions;
 
 pub use data_root::MoveReport;
+pub use play::PlayOptions;
+pub use accounts::LoginState;
+pub use atlas_auth::{Account, DeviceCode};
+pub use atlas_instances::{Changes as InstallationChanges, Installation};
+pub use atlas_launch::GameExit;
 pub use status::{GameState, StatusReport};
 pub use versions::{JobId, JobKind, JobSnapshot, JobState, VersionList, VersionRow};
 pub use atlas_versions::{DetectedInstall, InstalledVersion, VerifyReport, VersionKind};
@@ -47,6 +54,9 @@ pub struct Atlas {
     log_buffer: Option<LogBuffer>,
     pub(crate) rt: tokio::runtime::Runtime,
     pub(crate) jobs: std::sync::Arc<std::sync::Mutex<versions::Jobs>>,
+    pub(crate) session: play::SessionRef,
+    pub(crate) login: accounts::LoginRef,
+    pub(crate) memory_secrets: std::sync::Arc<dyn atlas_auth::SecretStore>,
 }
 
 struct State {
@@ -76,6 +86,9 @@ impl Atlas {
             log_buffer: None,
             rt,
             jobs: Default::default(),
+            session: Default::default(),
+            login: Default::default(),
+            memory_secrets: accounts::memory_store(),
         })
     }
 

@@ -17,6 +17,7 @@
 //! ```
 
 pub mod detect;
+pub mod java;
 pub mod model;
 mod plan;
 mod record;

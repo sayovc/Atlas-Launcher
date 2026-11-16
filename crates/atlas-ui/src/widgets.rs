@@ -40,13 +40,9 @@ pub fn pill(ui: &mut egui::Ui, text: &str, color: Color32) {
 pub fn primary_button(ui: &mut egui::Ui, text: &str, accent: Color32, enabled: bool, size: egui::Vec2) -> egui::Response {
     let fill = if enabled { accent } else { theme::SURFACE_HI };
     let fg = if enabled { Color32::from_rgb(0x06, 0x12, 0x14) } else { theme::TEXT_DIM };
-    ui.add_enabled(
-        enabled,
-        egui::Button::new(RichText::new(text).size(17.0).strong().color(fg))
-            .fill(fill)
-            .corner_radius(10)
-            .min_size(size),
-    )
+    // add_sized centres the label; min_size alone leaves it on the left
+    ui.add_enabled_ui(enabled, |ui| ui.add_sized(size, egui::Button::new(RichText::new(text).size(17.0).strong().color(fg)).fill(fill).corner_radius(10)))
+        .inner
 }
 
 /// Returns true if dismissed.

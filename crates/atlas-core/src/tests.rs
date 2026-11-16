@@ -51,7 +51,8 @@ fn status_is_honest_without_installations() {
     let s = a.status();
     assert_eq!(s.game_state, GameState::NoInstallation);
     assert!(s.account.is_none());
-    assert!(s.unavailable.contains(&"launch"));
+    assert!(s.installation.is_none());
+    assert_eq!(s.installed_versions, 0);
 }
 
 #[test]
@@ -116,4 +117,19 @@ fn move_does_not_follow_symlinks_out_of_tree() {
     let r = a.move_data_root(&t.path().join("moved"), Confirmation::Confirmed).unwrap();
     assert_eq!(r.symlinks_skipped, 1);
     assert_eq!(fs::read(outside.join("level.dat")).unwrap(), b"real world", "link target must survive");
+}
+
+#[test]
+fn installations_lifecycle_through_core() {
+    let (_t, a) = fixture();
+    // no network in tests: create with an explicit id instead of "latest"
+    let i = a.create_installation("Main", "1.21.4", None).unwrap();
+    assert_eq!(a.selected_installation().unwrap().id, i.id, "first one gets selected");
+    assert_eq!(a.game_state(), GameState::NotInstalled);
+    let e = a.delete_installation(&i.id, Confirmation::NotConfirmed).unwrap_err();
+    assert_eq!(e.code, ErrorCode::ConfirmationRequired);
+    let d = a.duplicate_installation(&i.id).unwrap();
+    a.delete_installation(&i.id, Confirmation::Confirmed).unwrap();
+    assert_eq!(a.selected_installation().unwrap().id, d.id, "selection moves to what's left");
+    assert!(a.stop(None).is_err(), "nothing running");
 }

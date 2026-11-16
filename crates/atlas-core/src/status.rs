@@ -45,6 +45,7 @@ pub struct StatusReport {
     /// `None` until Microsoft sign-in exists (Phase 3).
     pub account: Option<String>,
     pub installation: Option<String>,
+    pub installation_id: Option<String>,
     pub minecraft_version: Option<String>,
     pub game_state: GameState,
     pub installed_versions: usize,
@@ -57,22 +58,18 @@ pub struct StatusReport {
 
 pub(crate) fn compute(atlas: &Atlas) -> StatusReport {
     let paths = atlas.paths();
-    let has_installation = std::fs::read_dir(paths.installations_dir())
-        .map(|mut rd| rd.any(|e| e.is_ok_and(|e| e.path().join("installation.toml").is_file())))
-        .unwrap_or(false);
+    let sel = atlas.selected_installation();
     StatusReport {
         atlas_version: ATLAS_VERSION,
         data_root: paths.data_root,
-        account: None,
-        installation: None,
-        minecraft_version: None,
-        // Phase 1 has no installation service; with none on disk the honest
-        // state is NoInstallation. An installation.toml written by a future
-        // version is reported as NotInstalled rather than guessed Ready.
-        game_state: if has_installation { GameState::NotInstalled } else { GameState::NoInstallation },
+        account: atlas.active_account_name(),
+        installation: sel.as_ref().map(|i| i.name.clone()),
+        installation_id: sel.as_ref().map(|i| i.id.clone()),
+        minecraft_version: sel.as_ref().map(|i| i.version.clone()),
+        game_state: atlas.game_state(),
         installed_versions: atlas.installed_versions().map(|v| v.len()).unwrap_or(0),
         version_update: atlas.version_update(),
-        unavailable: vec!["accounts", "installations", "launch", "mods", "servers", "worlds", "self_update", "mcp"],
+        unavailable: vec!["mods", "servers", "worlds", "self_update", "mcp"],
         warnings: atlas.startup_warnings().to_vec(),
     }
 }

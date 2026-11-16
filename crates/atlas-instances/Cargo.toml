@@ -1,0 +1,20 @@
+[package]
+name = "atlas-instances"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+atlas-shared = { version = "0.1.0", path = "../atlas-shared" }
+serde = { version = "1.0.229", features = ["derive"] }
+toml = "1.2.1"
+tracing = "0.1.44"
+uuid = { version = "1.26.1", features = ["v4"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

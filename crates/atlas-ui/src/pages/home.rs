@@ -79,10 +79,19 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
         widgets::card(&mut cols[0], |ui| {
             widgets::section_title(ui, "Status");
             egui::Grid::new("home-status").num_columns(2).spacing([24.0, 10.0]).show(ui, |ui| {
-                widgets::kv(ui, "Account", match &status.account {
-                    Some(a) => RichText::new(a),
-                    None => RichText::new("Not signed in").color(theme::TEXT_FAINT),
-                });
+                ui.label(RichText::new("Account").color(theme::TEXT_DIM));
+                match &status.account {
+                    Some(a) => {
+                        ui.label(RichText::new(a));
+                    }
+                    None => {
+                        if ui.link("Sign in").clicked() {
+                            app.settings_page.open_accounts();
+                            app.navigate(Page::Settings);
+                        }
+                    }
+                }
+                ui.end_row();
                 widgets::kv(ui, "Installation", match &status.installation {
                     Some(i) => RichText::new(i),
                     None => RichText::new("None").color(theme::TEXT_FAINT),
@@ -104,21 +113,60 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
         // Play
         widgets::card(&mut cols[1], |ui| {
             widgets::section_title(ui, "Play");
-            // Phase 1: no installation/launch backend exists, so the action is
-            // disabled. The label still comes from the backend state.
-            let action_available = !status.unavailable.contains(&"installations");
+            let insts = app.atlas.installations().unwrap_or_default();
+            if !insts.is_empty() {
+                let sel = app.atlas.selected_installation();
+                egui::ComboBox::from_id_salt("home-inst")
+                    .width(ui.available_width())
+                    .selected_text(sel.as_ref().map(|i| format!("{}  ·  {}", i.name, i.version)).unwrap_or_default())
+                    .show_ui(ui, |ui| {
+                        for i in &insts {
+                            if ui.selectable_label(sel.as_ref().is_some_and(|s| s.id == i.id), format!("{}  ·  {}", i.name, i.version)).clicked() {
+                                let _ = app.atlas.select_installation(&i.id);
+                                app.refresh_status();
+                            }
+                        }
+                    });
+                ui.add_space(6.0);
+            }
+            let st = &status.game_state;
             let w = ui.available_width();
-            let resp = widgets::primary_button(ui, status.game_state.action_label(), accent, action_available, egui::vec2(w, 52.0));
-            if !action_available {
-                resp.on_disabled_hover_text("Installation management and launching are not built yet (Phase 3).");
-                ui.label(RichText::new("Installing and launching arrive in a later build. This button shows the real backend state.").small().color(theme::TEXT_FAINT));
-            } else if resp.clicked() && matches!(status.game_state, GameState::NoInstallation) {
-                app.navigate(Page::Installations);
+            let busy = matches!(st, GameState::Installing { .. } | GameState::Preparing { .. } | GameState::Launching | GameState::Stopping);
+            let label = st.action_label();
+            let resp = widgets::primary_button(ui, label, if matches!(st, GameState::Running { .. }) { theme::ERR } else { accent }, !busy, egui::vec2(w, 52.0));
+            if let GameState::Installing { progress } | GameState::Preparing { progress } = st {
+                ui.add(egui::ProgressBar::new(*progress).show_percentage().animate(true).desired_height(6.0));
+            }
+            if resp.clicked() {
+                let r = match st {
+                    GameState::NoInstallation => {
+                        app.navigate(Page::Installations);
+                        Ok(())
+                    }
+                    GameState::NotInstalled => match app.atlas.selected_installation() {
+                        Some(i) => app.atlas.start_install(&i.version).map(|_| ()),
+                        None => Ok(()),
+                    },
+                    GameState::Ready => {
+                        let server = (!app.server_addr.trim().is_empty()).then(|| app.server_addr.trim().to_string());
+                        app.atlas.play(None, atlas_core::PlayOptions { server })
+                    }
+                    GameState::Running { .. } => app.atlas.stop(None),
+                    GameState::Error { error } => {
+                        app.push_error(error.clone());
+                        app.atlas.dismiss_game_error();
+                        Ok(())
+                    }
+                    _ => Ok(()),
+                };
+                if let Err(e) = r {
+                    app.push_error(e);
+                }
+                app.refresh_status();
             }
             ui.add_space(8.0);
-            ui.label(RichText::new("Server address").color(theme::TEXT_DIM));
-            let mut addr = String::new();
-            ui.add_enabled(false, egui::TextEdit::singleline(&mut addr).hint_text("play.example.net:25565").desired_width(f32::INFINITY));
+            ui.label(RichText::new("Join a server (optional)").color(theme::TEXT_DIM));
+            ui.add(egui::TextEdit::singleline(&mut app.server_addr).hint_text("play.example.net:25565").desired_width(f32::INFINITY));
             ui.add_space(6.0);
             ui.label(RichText::new("Launch options").color(theme::TEXT_DIM));
             ui.label(
@@ -132,9 +180,14 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                 ))
                 .monospace(),
             );
-            if ui.link("Change in Settings").clicked() {
-                app.navigate(Page::Settings);
-            }
+            ui.horizontal(|ui| {
+                if ui.link("Change in Settings").clicked() {
+                    app.navigate(Page::Settings);
+                }
+                if status.account.is_none() {
+                    ui.label(RichText::new("· demo mode until you sign in").small().color(theme::TEXT_FAINT));
+                }
+            });
         });
     });
 }

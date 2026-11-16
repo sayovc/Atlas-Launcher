@@ -4,14 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+atlas-auth = { version = "0.1.0", path = "../atlas-auth" }
 atlas-config = { version = "0.1.0", path = "../atlas-config" }
 atlas-downloads = { version = "0.1.0", path = "../atlas-downloads" }
+atlas-instances = { version = "0.1.0", path = "../atlas-instances" }
+atlas-launch = { version = "0.1.0", path = "../atlas-launch" }
 atlas-logging = { version = "0.1.0", path = "../atlas-logging" }
 atlas-shared = { version = "0.1.0", path = "../atlas-shared" }
 atlas-versions = { version = "0.1.0", path = "../atlas-versions" }
+open = "5.4.5"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "sync", "time"] }
+tokio-util = "0.7.20"
 toml = "1.2.1"
 tracing = "0.1.44"
 
