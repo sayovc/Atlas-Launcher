@@ -1,8 +1,6 @@
-//! `atlas-core`: the one backend every Atlas front-end talks to.
-//!
-//! The GUI (`atlas-ui`), the CLI (`atlas-cli`) and the future MCP server all
-//! hold an [`Atlas`] and call its methods. No front-end contains business
-//! logic of its own; they render [`Atlas`] state and forward user intent.
+//! The backend. The GUI, the CLI and the MCP server all hold an
+//! [`Atlas`] and call into it, so they can't drift apart: if something
+//! works in one, it works the same way in the others.
 
 mod accounts;
 mod content;
@@ -32,8 +30,8 @@ use atlas_shared::{AtlasError, AtlasResult, ErrorCode};
 use std::path::Path;
 use std::sync::RwLock;
 
-/// Explicit consent token for destructive operations. Front-ends must obtain
-/// it from the user (dialog, `--yes`, MCP confirmation round-trip).
+/// Proof that the user said yes to something destructive. The GUI gets it
+/// from a dialog, the CLI from `--yes`, MCP from an approved code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Confirmation {
     Confirmed,
@@ -52,7 +50,7 @@ impl Confirmation {
     }
 }
 
-/// The Atlas backend.
+/// The backend. Cheap to share behind an `Arc`.
 pub struct Atlas {
     state: RwLock<State>,
     startup_warnings: Vec<AtlasError>,
@@ -207,9 +205,7 @@ impl Atlas {
 
     // --------------------------------------------------------------- data root
 
-    /// Move every Atlas-managed item to `new_root`, verify the copy, repoint
-    /// the locator, then remove the originals. See [`data_root`] for the
-    /// safety rules.
+    /// Move the data folder. See `data_root.rs` for how it stays safe.
     pub fn move_data_root(&self, new_root: &Path, confirm: Confirmation) -> AtlasResult<MoveReport> {
         confirm.require("move the Atlas data folder")?;
         if self.jobs.lock().unwrap_or_else(|p| p.into_inner()).any_running() {

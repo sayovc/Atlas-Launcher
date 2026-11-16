@@ -1,15 +1,10 @@
-//! A small, local MCP server so AI assistants can drive Atlas.
+//! A small MCP server so an AI assistant on this computer can use Atlas.
 //!
-//! Ground rules:
-//! * Off unless both `advanced.ai.enabled` and `advanced.ai.mcp_enabled`
-//!   are on. Checked at startup *and* on every call, so flipping the
-//!   switch off stops it immediately.
-//! * stdio only: the assistant has to launch `atlas mcp` itself, nothing
-//!   listens on the network.
-//! * The caller must present the token from `mcp-token` (user-only file).
-//! * Nothing here can return account tokens; logs are redacted.
-//! * Destructive tools need a one-time code that a human approves with
-//!   `atlas mcp approve <code>`.
+//! It stays off unless both AI switches in Settings are on, and it checks
+//! that on every request, so switching AI off stops it right away. It only
+//! talks over stdin/stdout (nothing listens on the network) and wants the
+//! token from `mcp-token`. No tool can get at account tokens, and anything
+//! destructive needs a code the user approves with `atlas mcp approve`.
 
 mod approvals;
 mod tools;

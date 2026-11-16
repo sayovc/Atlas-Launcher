@@ -1,8 +1,7 @@
-//! Credential redaction.
+//! Scrubs anything that looks like a credential out of text.
 //!
-//! Applied to every log line (file and in-memory viewer) and every
-//! [`crate::AtlasError`] detail string. It is deliberately aggressive: a false
-//! positive costs a little readability, a false negative leaks an account.
+//! Runs on every log line and every error detail. It errs on the side of
+//! hiding too much: an ugly log line is fine, a leaked token isn't.
 
 use regex::Regex;
 use std::borrow::Cow;

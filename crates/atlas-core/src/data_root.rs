@@ -1,16 +1,11 @@
-//! Relocating the Atlas data root.
+//! Moving the data folder somewhere else.
 //!
-//! Rules:
-//! 1. Target must be absolute, outside the current root (and vice versa), and
-//!    either missing or an empty directory: Atlas never merges into or
-//!    overwrites an existing folder (so another launcher's data is safe).
-//! 2. Only Atlas-managed items move ([`MANAGED_SUBDIRS`], [`MANAGED_FILES`]).
-//! 3. Copy without following symlinks, then verify file counts and byte
-//!    totals per item. Any mismatch rolls back the copy; the original is
-//!    untouched.
-//! 4. Only after the locator points at the verified copy are originals
-//!    removed. A failed removal is reported, never fatal: data is safe in
-//!    the new location.
+//! The target has to be empty (we never merge into an existing folder),
+//! and only our own folders get moved. We copy first, check that file
+//! counts and sizes match, point the locator at the copy, and only then
+//! delete the originals. If anything goes wrong before that point the
+//! original is untouched. If a delete fails afterwards (say a log file is
+//! still open on Windows) we just report it.
 
 use atlas_config::paths::{AtlasPaths, MANAGED_FILES, MANAGED_SUBDIRS};
 use atlas_shared::fs_safety::{copy_tree_no_follow, is_within, measure_tree, remove_tree_no_follow};

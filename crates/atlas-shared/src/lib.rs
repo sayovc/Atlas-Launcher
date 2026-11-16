@@ -1,8 +1,5 @@
-//! Shared primitives used by every Atlas crate.
-//!
-//! * [`error`] – the structured [`AtlasError`] type (code, explanation, details, suggestion).
-//! * [`redact`] – credential scrubbing applied to every log line and error detail.
-//! * [`fs_safety`] – path-traversal and symlink-safe filesystem helpers.
+//! Bits every other crate needs: the error type, log redaction and
+//! some careful filesystem helpers.
 
 pub mod error;
 pub mod fs_safety;

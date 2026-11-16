@@ -1,8 +1,8 @@
-//! Strongly typed, versioned Atlas settings stored as `settings.toml`.
+//! `settings.toml`, as a typed struct.
 //!
-//! Every field has a default, so older files load and missing sections are
-//! filled in. Unknown keys are preserved as warnings rather than errors so a
-//! downgrade never wipes settings silently.
+//! Every field has a default so old or half-written files still load.
+//! Unknown keys are kept as warnings rather than errors, so running an
+//! older Atlas doesn't quietly throw settings away.
 
 use atlas_shared::{fs_safety::atomic_write, AtlasError, AtlasResult, ErrorCode};
 use serde::{Deserialize, Serialize};
@@ -88,7 +88,7 @@ impl Default for Appearance {
     }
 }
 
-/// Note: checksum verification is intentionally *not* configurable.
+/// There's deliberately no switch to turn off checksum checks.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Downloads {
@@ -203,8 +203,8 @@ impl Default for Advanced {
     }
 }
 
-/// AI / agent integration. `enabled = false` is a global kill switch: when off,
-/// no MCP server can start regardless of `mcp_enabled`.
+/// AI features. `enabled` is the master switch: with it off, the MCP server
+/// won't run no matter what `mcp_enabled` says.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct Ai {
@@ -318,7 +318,7 @@ fn unknown_key(key: &str) -> AtlasError {
         .suggest("Run `atlas settings show` to list valid keys.")
 }
 
-/// Result of loading settings: never silently drops problems.
+/// Loaded settings plus anything worth telling the user about.
 #[derive(Debug, Clone)]
 pub struct LoadOutcome {
     pub settings: Settings,

@@ -252,7 +252,7 @@ impl VersionService {
     }
 
     /// Re-download only files that are missing or corrupt, using the URLs and
-    /// hashes in the install record (no manifest needed — works offline for
+    /// hashes in the install record (no manifest needed - works offline for
     /// files still in the reuse roots).
     pub async fn repair(&self, dl: &Downloader, id: &str, progress: Arc<Progress>, cancel: CancellationToken) -> AtlasResult<VerifyReport> {
         let r = self.record(id)?;

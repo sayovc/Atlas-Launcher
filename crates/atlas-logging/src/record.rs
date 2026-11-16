@@ -46,8 +46,7 @@ impl From<&tracing::Level> for LogLevel {
     }
 }
 
-/// Where a record came from. Game / crash / install sources are populated in
-/// later phases by the launch and install services.
+/// Where a log line came from. The game's own output is tagged `Game`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogSource {

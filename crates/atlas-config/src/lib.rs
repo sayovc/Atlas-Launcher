@@ -1,14 +1,11 @@
-//! Atlas configuration: platform directories and strongly typed settings.
+//! Where Atlas keeps things, and the settings file.
 //!
-//! Layout
-//! ------
-//! * **Bootstrap dir** (fixed, platform config dir): holds only `locator.toml`,
-//!   which records where the data root lives. This is what makes the data
-//!   root relocatable.
-//! * **Data root** (default: platform data dir, user-movable): `settings.toml`,
-//!   installations, versions, downloads cache, logs, account metadata.
+//! There are two folders. The bootstrap folder (in the platform config
+//! dir) only holds `locator.toml`, which says where the data folder is.
+//! The data folder holds everything else and can be moved. That split is
+//! the whole trick behind "change data folder".
 //!
-//! Atlas never stores anything inside another launcher's directory.
+//! We never write into another launcher's folders.
 
 pub mod paths;
 pub mod settings;

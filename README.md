@@ -1,70 +1,101 @@
 # Atlas Launcher
 
-An original, open Rust desktop launcher for Minecraft: Java Edition.
-
-> **Status: pre-alpha (Phase 2 of 5 done).** The window, settings, logging,
-> data folders, CLI, and installing/verifying/repairing official Minecraft
-> versions work. Signing in, launching, mods and servers are **not built yet**. The UI says so instead
-> of showing fake data.
->
-> Atlas is not affiliated with Mojang, Microsoft or any other launcher. It
-> ships no Mojang assets or code. You need your own legally obtained copy of
-> Minecraft.
+A launcher for Minecraft: Java Edition, written in Rust. Atlas installs
+game versions straight from Mojang, checks every file, keeps each
+installation separate, and gets out of your way when you hit Play.
 
 ![Home](docs/screenshots/home.png)
 
-## Build and run
+> Pre-alpha. Most things work, some edges are rough. Atlas isn't made by or
+> affiliated with Mojang or Microsoft, and it doesn't ship any game files:
+> you need your own copy of Minecraft.
 
-Needs Rust 1.85 or newer.
+## What it does
+
+- **Versions:** every release and snapshot from Mojang's official list.
+  Downloads resume if interrupted, every file is checked against Mojang's
+  hashes, and Repair re-downloads only what's broken. Files you already
+  have in another launcher's folder get reused instead of downloaded again.
+- **Installations:** as many as you like, each with its own version, game
+  folder, memory and Java settings. Point one at an existing folder and
+  Atlas will never delete it.
+- **Playing:** Atlas downloads the right Java for each version, starts the
+  game, shows its output live, notices crashes and links the crash report.
+  You can join a server straight from the launcher.
+- **Microsoft sign-in:** in your browser, with a device-code fallback.
+  Atlas never sees your password, and tokens stay in your system's
+  keychain. Without an account you can still play the demo.
+- **Servers:** a saved list that shows who's online.
+- **Mods and packs:** list, enable, disable and remove mods (Fabric, Quilt,
+  Forge and NeoForge metadata is read), plus resource and shader packs.
+  Modrinth `.mrpack` modpacks can be imported. Atlas doesn't install mod
+  loaders yet.
+- **Worlds:** list, back up to zip, and delete (which always backs up first).
+- **Logs:** launcher and game logs with search and filters. Tokens are
+  stripped out automatically.
+- **CLI:** everything above is also available as `atlas …`, with `--json`
+  for scripts.
+- **AI assistants (optional):** a local MCP server, off by default.
+- **Self-update:** signed releases only, with automatic rollback if a new
+  version won't start.
+
+## Build it
+
+You need Rust 1.85 or newer.
 
 ```bash
-cargo run -p atlas-ui --bin atlas-launcher   # desktop app
-cargo run -p atlas-cli --bin atlas -- status # CLI
+cargo run --release -p atlas-ui --bin atlas-launcher
+```
+
+On Linux you may need `libxkbcommon-x11-0` (Debian/Ubuntu) for the window.
+Run the tests with:
+
+```bash
 cargo test --workspace
 ```
 
-On Linux the window needs the usual X11/Wayland runtime libraries (for
-example `libxkbcommon-x11-0` on Debian/Ubuntu).
-
-## What works today
-
-| Area | State |
-|---|---|
-| Desktop window, sidebar navigation, animations, dark theme, 4 accents | ✔ |
-| Settings (9 sections), typed + validated, atomic save, corrupt-file backup | ✔ |
-| Data folder in platform dirs, relocatable with a verified move | ✔ |
-| Structured logging (JSON files, rotation, redaction), live log viewer | ✔ |
-| Structured errors (code, message, details, suggestion) | ✔ |
-| CLI: `status`, `paths`, `settings`, `data-dir`, `logs`, `--json` | ✔ |
-| Version list from Mojang, install / verify / repair / remove, update check | ✔ |
-| Resumable, checksum-verified, cancellable downloads; reuse from existing `.minecraft` | ✔ |
-| Installations, Microsoft sign-in, launching | Phase 3 |
-| Servers, mods, worlds | Phase 4 |
-| MCP, self-update, installers | Phase 5 |
-
-## CLI examples
+## Command line
 
 ```bash
-atlas status
-atlas settings set memory.max_mb 6144
-atlas settings get memory.max_mb --json
-atlas data-dir move /mnt/games/atlas --yes
-atlas logs --level warn --search download -n 50
-atlas versions --refresh
 atlas install latest
+atlas instances create Survival --version latest
+atlas play
+atlas play --server play.example.net
+atlas versions --installed
 atlas verify 26.3
-atlas repair 26.3
-atlas remove 26.3 --yes
-atlas detect
+atlas mods
+atlas worlds backup "My World"
+atlas servers add Friends mc.example.net
+atlas import pack.mrpack
+atlas account login
+atlas logs --level warn -n 50
 ```
 
-Destructive commands refuse to run without `--yes` (exit code 3,
-`CONFIRMATION_REQUIRED`).
+Anything destructive needs `--yes`. Run `atlas --help` for the full list.
 
-## Documentation
+## Using it with an AI assistant
 
-* [Architecture](docs/ATLAS_ARCHITECTURE.md)
+1. Turn on Settings → Advanced → **Enable AI features**, then **Local MCP server**.
+2. Press **Copy assistant config** and paste it into your assistant's MCP
+   settings, or run `atlas mcp token` to get the config.
+
+The assistant can look things up, install versions and start the game. It
+can't see your account, and anything destructive gives it a code that you
+have to approve yourself with `atlas mcp approve <code>`. Switching AI off
+stops the server immediately.
+
+## Release setup (for maintainers)
+
+- **Microsoft sign-in:** set the repo variable `ATLAS_MS_CLIENT_ID` to your
+  Azure app id. That app needs Mojang's approval for the Minecraft API.
+- **Signed updates:** run `cargo xtask keygen`. Put the private key in the
+  secret `ATLAS_UPDATE_KEY` and the public key in the variable
+  `ATLAS_UPDATE_PUBKEY`.
+- **Publishing:** push a tag like `v0.2.0` and GitHub Actions builds the
+  Windows, macOS and Linux packages.
+
+More detail is in [docs/ATLAS_ARCHITECTURE.md](docs/ATLAS_ARCHITECTURE.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

@@ -1,8 +1,7 @@
-//! `atlas` — command-line front-end for Atlas Launcher.
+//! `atlas`, the command-line side of Atlas Launcher.
 //!
-//! Every command is a thin call into `atlas_core::Atlas`; no business logic
-//! lives here. With `--json`, output is a single JSON object:
-//! `{"ok":true,"data":...}` or `{"ok":false,"error":{code,message,details,suggestion}}`.
+//! Each command just calls into `atlas_core::Atlas`. With `--json` you get
+//! `{"ok":true,"data":...}` or `{"ok":false,"error":{...}}`.
 
 use atlas_core::{Atlas, Confirmation};
 use atlas_logging::{LogFilter, LogLevel, LogSource};

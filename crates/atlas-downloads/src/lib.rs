@@ -1,14 +1,10 @@
-//! Verified, resumable, cancellable downloads.
+//! Downloads that resume, verify and can be cancelled.
 //!
-//! Guarantees:
-//! * A file only ever appears at its destination after its checksum (and
-//!   size, when known) has been verified. Data is streamed into
-//!   `<dest>.part` and atomically renamed.
-//! * Interrupted downloads resume from `.part` with an HTTP `Range` request
-//!   when the server supports it; otherwise they restart cleanly.
-//! * Existing valid files are never downloaded again.
-//! * Local candidate files (for example from an existing `.minecraft`) are
-//!   reused only if their hash matches; they are copied, never moved or modified.
+//! Data goes into `<file>.part` while it's hashed, and only gets renamed
+//! into place once the checksum (and size, if we know it) match. So a
+//! half-finished or tampered file never shows up where the game would
+//! look. Files that are already correct are skipped, and matching files
+//! from other launchers are copied instead of downloaded.
 
 mod limiter;
 #[cfg(any(test, feature = "testing"))]
@@ -76,7 +72,7 @@ impl Hasher {
     }
 }
 
-/// One file to obtain.
+/// One file we want.
 #[derive(Debug, Clone)]
 pub struct DownloadRequest {
     pub url: String,
@@ -186,7 +182,7 @@ impl Downloader {
         }
     }
 
-    /// Obtain one file. See the crate docs for guarantees.
+    /// Get one file onto disk, verified.
     pub async fn download(&self, req: &DownloadRequest, progress: &Progress, cancel: &CancellationToken) -> AtlasResult<Outcome> {
         // 1. Already present and valid?
         if verify_file_async(req.dest.clone(), req.checksum.clone(), req.size).await? {
@@ -339,8 +335,8 @@ impl Downloader {
         Ok(())
     }
 
-    /// Obtain many files concurrently. Stops scheduling new work after the
-    /// first error and cancels the rest; returns that first error.
+    /// Get many files at once. The first real failure cancels the rest and
+    /// is what gets returned.
     pub async fn download_all(&self, reqs: Vec<DownloadRequest>, progress: Arc<Progress>, cancel: CancellationToken) -> AtlasResult<Vec<Outcome>> {
         progress.add_total_files(reqs.len() as u64);
         progress.add_total_bytes(reqs.iter().filter_map(|r| r.size).sum());

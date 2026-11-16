@@ -1,10 +1,9 @@
-//! Structured logging for Atlas.
+//! Logging.
 //!
-//! * Files: JSON lines in `<data_root>/logs/launcher/atlas.log.<date>`, rotated
-//!   daily, oldest pruned. Every line passes through [`atlas_shared::redact`].
-//! * Memory: a bounded ring buffer ([`LogBuffer`]) feeding the GUI log viewer.
-//! * Reading: [`read_log_dir`] parses files back into [`LogRecord`]s for the
-//!   CLI (which runs in a different process than the GUI).
+//! Log files are JSON lines in `logs/launcher/`, one file per day, and
+//! everything is redacted before it's written. The GUI's log viewer reads
+//! from an in-memory ring buffer; the CLI reads the files back, since it
+//! runs in a different process.
 
 mod buffer;
 mod record;

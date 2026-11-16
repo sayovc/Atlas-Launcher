@@ -1,16 +1,15 @@
-//! Structured, user-presentable errors.
+//! The one error type used everywhere.
 //!
-//! Every failure that can reach a user carries:
-//! * a stable machine-readable [`ErrorCode`] (serialised as `SCREAMING_SNAKE_CASE`),
-//! * a human explanation,
-//! * technical details (always passed through [`crate::redact::redact`]),
-//! * a suggested solution.
+//! Each error has a code that scripts can match on (it never changes
+//! meaning), a sentence for the user, technical details for bug reports,
+//! and a hint about what to do next. Details get redacted on the way in,
+//! so a token can't sneak out through an error message.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Stable error codes. New variants may be added; existing names never change
-/// meaning because the CLI's JSON output and MCP clients depend on them.
+/// Error codes. Add new ones freely, but don't change what an existing one
+/// means: scripts and MCP clients match on them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[non_exhaustive]
@@ -25,7 +24,7 @@ pub enum ErrorCode {
     UnsafeSymlink,
     // Confirmation gate for destructive operations
     ConfirmationRequired,
-    // Reserved for later phases (declared now so codes stay stable)
+    // auth, versions, launching, updates
     AuthExpired,
     AuthFailed,
     VersionNotFound,
@@ -77,7 +76,7 @@ impl fmt::Display for ErrorCode {
     }
 }
 
-/// The error type returned by every Atlas service.
+/// What every fallible Atlas call returns.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
 #[error("[{code}] {message}")]
 pub struct AtlasError {

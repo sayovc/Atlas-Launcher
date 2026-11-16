@@ -1,10 +1,8 @@
-//! Filesystem safety helpers.
+//! Filesystem helpers for paths we didn't choose ourselves.
 //!
-//! Atlas never trusts a relative path that came from outside the program
-//! (archives, manifests, modpacks, user input). Everything is joined through
-//! [`safe_join`], and destructive recursive operations go through
-//! [`copy_tree_no_follow`] / [`remove_tree_no_follow`] which refuse to follow
-//! symlinks out of the tree being operated on.
+//! Anything coming from an archive, a manifest or the user goes through
+//! `safe_join`. The copy/remove helpers never follow symlinks, so a link
+//! to someone's real `.minecraft` can't be copied or deleted by accident.
 
 use crate::{AtlasError, AtlasResult, ErrorCode};
 use std::fs;

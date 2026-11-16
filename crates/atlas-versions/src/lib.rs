@@ -1,19 +1,15 @@
-//! Game version management for Minecraft: Java Edition.
+//! Installing Minecraft versions from Mojang's official metadata.
 //!
-//! Source of truth: Mojang's official version manifest (fetched over HTTPS).
-//! Every subsequent file is verified against a SHA-1 published by the
-//! previous link in the chain:
+//! The manifest comes over HTTPS, and from there every file is checked
+//! against a SHA-1 given by the file before it: manifest, version JSON,
+//! then the jar, libraries, asset index and assets.
 //!
-//! manifest (HTTPS) → version JSON (sha1) → client jar, libraries,
-//! asset index, logging config (sha1) → asset objects (sha1 = file name).
-//!
-//! Layout inside the Atlas data root:
+//! On disk (inside the data folder):
 //! ```text
-//! versions/<id>/<id>.json, <id>.jar, install.toml   ← installed only when install.toml exists
-//! versions/.staging/<id>/                            ← in-progress install (resumable)
-//! libraries/<maven path>                             ← shared, verified
-//! assets/indexes/<id>.json, assets/objects/<hh>/<hash>, assets/log_configs/<file>
-//! cache/manifest/version_manifest_v2.json            ← offline fallback
+//! versions/<id>/            installed (only once install.toml is written)
+//! versions/.staging/<id>/   install in progress, resumable
+//! libraries/, assets/       shared between versions
+//! cache/manifest/           last version list, for offline use
 //! ```
 
 pub mod detect;

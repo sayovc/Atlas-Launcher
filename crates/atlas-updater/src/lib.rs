@@ -1,11 +1,10 @@
-//! Self-update.
+//! Updating Atlas itself.
 //!
-//! A release publishes `atlas-update.json` plus `atlas-update.json.sig`
-//! (an Ed25519 signature over the exact JSON bytes). We only trust a
-//! manifest signed by the key compiled into this build, never go
-//! backwards in version, and check the binary's SHA-256 before it
-//! replaces anything. The old binary is kept so a bad update can be
-//! rolled back, automatically if the new one keeps failing to start.
+//! A release ships `atlas-update.json` and a `.sig` next to it. We only
+//! believe a manifest signed by the key built into this binary, we never
+//! go back to an older version, and the download has to match its SHA-256
+//! before it replaces anything. The old binary is kept, and if the new one
+//! fails to start three times in a row we put the old one back.
 
 use atlas_downloads::{CancellationToken, Checksum, DownloadRequest, Downloader, Progress};
 use atlas_shared::fs_safety::atomic_write;

@@ -1,5 +1,5 @@
-//! Atlas visual identity: a dark "night-chart" palette with a single accent.
-//! All colours live here so the rest of the UI never hardcodes them.
+//! Colours, fonts and the Atlas logo. Everything visual comes from here
+//! so the pages never hardcode a colour.
 
 use atlas_config::settings::Accent;
 use egui::{Color32, CornerRadius, FontFamily, FontId, Stroke, TextStyle, Visuals};

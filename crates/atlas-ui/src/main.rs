@@ -1,7 +1,7 @@
-//! Atlas Launcher desktop application.
+//! Atlas Launcher, the desktop app.
 //!
-//! The UI owns no business logic: it renders `atlas_core::Atlas` state and
-//! forwards user intent to it.
+//! The UI doesn't decide anything on its own; it shows what
+//! `atlas_core::Atlas` reports and passes clicks through.
 
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 

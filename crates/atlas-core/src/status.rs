@@ -2,7 +2,7 @@ use crate::Atlas;
 use atlas_shared::{AtlasError, ATLAS_VERSION};
 use serde::Serialize;
 
-/// The lifecycle state the Play button renders. Produced only by the backend.
+/// What the Play button shows. Only the backend sets this.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum GameState {
@@ -42,7 +42,7 @@ impl GameState {
 pub struct StatusReport {
     pub atlas_version: &'static str,
     pub data_root: std::path::PathBuf,
-    /// `None` until Microsoft sign-in exists (Phase 3).
+    /// Name of the signed-in account, if any.
     pub account: Option<String>,
     pub installation: Option<String>,
     pub installation_id: Option<String>,
@@ -51,7 +51,7 @@ pub struct StatusReport {
     pub installed_versions: usize,
     /// Newest release not installed yet (from the cached version list).
     pub version_update: Option<String>,
-    /// Features whose backend is not built yet; front-ends show them as such.
+    /// Things this build can't do (e.g. self-update without a release key).
     pub unavailable: Vec<&'static str>,
     pub warnings: Vec<AtlasError>,
 }
