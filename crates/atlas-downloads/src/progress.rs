@@ -52,7 +52,11 @@ impl Progress {
         self.done_bytes.fetch_add(n, Relaxed);
     }
     pub(crate) fn sub_done_bytes(&self, n: u64) {
-        let _ = self.done_bytes.fetch_update(Relaxed, Relaxed, |v| Some(v.saturating_sub(n)));
+        // CAS loop instead of fetch_update/try_update: works on old and new toolchains.
+        let mut cur = self.done_bytes.load(Relaxed);
+        while let Err(actual) = self.done_bytes.compare_exchange_weak(cur, cur.saturating_sub(n), Relaxed, Relaxed) {
+            cur = actual;
+        }
     }
     /// Announce work that will be done outside [`crate::Downloader::download_all`].
     pub fn plan(&self, files: u64, bytes: u64) {
