@@ -2,9 +2,9 @@
 
 An original, open Rust desktop launcher for Minecraft: Java Edition.
 
-> **Status: pre-alpha (Phase 1 of 5).** The window, navigation, settings,
-> logging, data folders and the CLI basics work. Signing in, installing,
-> launching, mods and servers are **not built yet**. The UI says so instead
+> **Status: pre-alpha (Phase 2 of 5 done).** The window, settings, logging,
+> data folders, CLI, and installing/verifying/repairing official Minecraft
+> versions work. Signing in, launching, mods and servers are **not built yet**. The UI says so instead
 > of showing fake data.
 >
 > Atlas is not affiliated with Mojang, Microsoft or any other launcher. It
@@ -36,7 +36,9 @@ example `libxkbcommon-x11-0` on Debian/Ubuntu).
 | Structured logging (JSON files, rotation, redaction), live log viewer | ✔ |
 | Structured errors (code, message, details, suggestion) | ✔ |
 | CLI: `status`, `paths`, `settings`, `data-dir`, `logs`, `--json` | ✔ |
-| Versions, downloads, installations, Microsoft sign-in, launching | Phase 2–3 |
+| Version list from Mojang, install / verify / repair / remove, update check | ✔ |
+| Resumable, checksum-verified, cancellable downloads; reuse from existing `.minecraft` | ✔ |
+| Installations, Microsoft sign-in, launching | Phase 3 |
 | Servers, mods, worlds | Phase 4 |
 | MCP, self-update, installers | Phase 5 |
 
@@ -48,6 +50,12 @@ atlas settings set memory.max_mb 6144
 atlas settings get memory.max_mb --json
 atlas data-dir move /mnt/games/atlas --yes
 atlas logs --level warn --search download -n 50
+atlas versions --refresh
+atlas install latest
+atlas verify 26.3
+atlas repair 26.3
+atlas remove 26.3 --yes
+atlas detect
 ```
 
 Destructive commands refuse to run without `--yes` (exit code 3,

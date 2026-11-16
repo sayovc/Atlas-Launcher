@@ -9,16 +9,12 @@ fn plan(page: Page) -> (&'static str, &'static str, &'static [&'static str]) {
     match page {
         Page::Installations => ("Phase 3", "Independent installations, each with its own game folder, version, memory and launch arguments.",
             &["Create, rename, duplicate, repair, update", "Delete only Atlas-owned folders, with confirmation", "Per-installation Java and memory settings"]),
-        Page::Versions => ("Phase 2", "Browse, install, verify and repair game versions from trusted, checksummed sources.",
-            &["Available, installed and latest versions", "SHA-1/SHA-256 verification of every file", "Resumable downloads that never corrupt an install"]),
         Page::Mods => ("Phase 4", "Manage mods and resource packs per installation.",
             &["Enable / disable local mod files", "Compatibility and dependency info", "Modpack and resource pack import"]),
         Page::Servers => ("Phase 4", "Your server list, connected through the selected installation.",
             &["Add, edit, remove, favourite", "Version and last-played info", "One-click connect"]),
         Page::Worlds => ("Phase 4", "Worlds stored in your installations, with safe backups.",
             &["List and back up worlds", "Never deleted as a side effect"]),
-        Page::Downloads => ("Phase 2", "Live progress for every download and verification job.",
-            &["Pause, resume and cancel", "Per-file checksum results"]),
         _ => ("Later", "", &[]),
     }
 }

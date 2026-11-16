@@ -67,6 +67,7 @@ pub struct AtlasApp {
     pub notices: Vec<Notice>,
     pub settings_page: pages::settings::SettingsPage,
     pub logs_page: pages::logs::LogsPage,
+    pub versions_page: pages::versions::VersionsPage,
     applied_scale: f32,
 }
 
@@ -83,6 +84,7 @@ impl AtlasApp {
         Self {
             settings_page: pages::settings::SettingsPage::new(&atlas),
             logs_page: pages::logs::LogsPage::default(),
+            versions_page: pages::versions::VersionsPage::default(),
             atlas,
             page: Page::from_env().unwrap_or(Page::Home),
             page_changed_at: Instant::now(),
@@ -161,6 +163,14 @@ impl AtlasApp {
             let x = rect.left() + 26.0 + hovered_t * 2.0;
             crate::icons::paint(ui.painter(), p, egui::pos2(x + 8.0, rect.center().y), 16.0, if sel { accent } else { col });
             ui.painter().text(egui::pos2(x + 28.0, rect.center().y), egui::Align2::LEFT_CENTER, p.label(), egui::FontId::proportional(14.0), col);
+            if p == Page::Downloads {
+                let running = self.atlas.jobs().iter().filter(|j| j.state == atlas_core::JobState::Running).count();
+                if running > 0 {
+                    let c = egui::pos2(rect.right() - 30.0, rect.center().y);
+                    ui.painter().circle_filled(c, 9.0, accent);
+                    ui.painter().text(c, egui::Align2::CENTER_CENTER, running.to_string(), egui::FontId::proportional(11.0), egui::Color32::from_rgb(6, 18, 20));
+                }
+            }
             if resp.clicked() {
                 clicked = Some(p);
             }
@@ -240,6 +250,8 @@ impl eframe::App for AtlasApp {
                     Page::Home => pages::home::show(self, ui),
                     Page::Settings => pages::settings::show(self, ui),
                     Page::Logs => pages::logs::show(self, ui),
+                    Page::Versions => pages::versions::show(self, ui),
+                    Page::Downloads => pages::downloads::show(self, ui),
                     other => pages::placeholder::show(self, ui, other),
                 }
             });

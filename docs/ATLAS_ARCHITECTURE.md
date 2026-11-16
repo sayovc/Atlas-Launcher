@@ -53,8 +53,8 @@ atlas/
 │   ├── atlas-core/         the backend facade used by every front-end        [Phase 1 ✔]
 │   ├── atlas-ui/           egui/eframe desktop app  → binary `atlas-launcher` [Phase 1 ✔]
 │   ├── atlas-cli/          clap CLI                 → binary `atlas`          [Phase 1 ✔]
-│   ├── atlas-downloads/    resumable, verified HTTP downloads                [Phase 2]
-│   ├── atlas-versions/     version manifests, install/verify/repair          [Phase 2]
+│   ├── atlas-downloads/    resumable, verified HTTP downloads                [Phase 2 ✔]
+│   ├── atlas-versions/     version manifests, install/verify/repair, detect  [Phase 2 ✔]
 │   ├── atlas-minecraft/    Java data layout, detection, preparation          [Phase 2/3]
 │   ├── atlas-auth/         Microsoft → Xbox → Minecraft auth, keyring        [Phase 3]
 │   ├── atlas-instances/    installations                                     [Phase 3]
@@ -220,7 +220,60 @@ with sections `general`, `appearance`, `downloads`, `game`, `memory`,
 
 ---
 
-## 7. Versions and downloads (Phase 2 design)
+## 7. Versions and downloads (implemented in Phase 2)
+
+**As built:**
+
+* `atlas-downloads` uses `reqwest` with rustls and the platform verifier, so
+  it honours system and corporate certificate stores.
+  * Data streams into `<dest>.part` while being hashed, and the size is
+    guarded so a server can't send more than announced.
+  * The file is fsynced, verified (SHA-1 or SHA-256, plus size), then
+    atomically renamed into place.
+  * Resume uses `Range` and falls back to a clean restart when the server
+    ignores it.
+  * Retries use exponential backoff. A shared token bucket enforces
+    `downloads.bandwidth_limit_kib`, and every await point honours a
+    `CancellationToken`.
+  * Valid files are never fetched twice. Candidate files from other
+    launchers are reused only on a hash match, and they are copied, never
+    moved.
+* `atlas-versions`:
+  * Fetches Mojang's manifest over HTTPS and caches it for offline use (an
+    offline result is marked `stale`).
+  * Checks each version JSON against the manifest's SHA-1, then every jar,
+    library, native, logging config, asset index and asset object against
+    the SHA-1 published one link up.
+  * Evaluates library rules for the current OS/arch, ignores feature-gated
+    rules, and resolves legacy `natives` classifiers.
+  * Every metadata path goes through `safe_join`, and ids and hashes are
+    validated.
+  * An install works in `versions/.staging/<id>/` (resumable). Shared
+    libraries and assets go straight to verified, shared locations.
+    `install.toml` (every file with path, SHA-1, size and URL) is written
+    last, then staging is renamed to `versions/<id>/`. A version counts as
+    installed only when `install.toml` exists.
+  * Verify re-hashes every recorded file. Repair re-downloads only the bad
+    files, using the record's URLs. Remove deletes `versions/<id>/` only,
+    and shared files are kept.
+  * The update check flags a newer latest release than any installed
+    release, using the cached list (no network).
+  * Detection is read-only and covers the official launcher (including
+    Flatpak), Prism (including Flatpak), MultiMC and `game.minecraft_dir`.
+* `atlas-core` runs installs and repairs as background jobs on a Tokio
+  runtime. It tracks lock-free progress (files, bytes, downloaded / reused /
+  already valid) and supports cancellation. It refuses concurrent jobs on
+  the same version, removing a busy version, and moving the data root while
+  jobs run.
+* `ATLAS_VERSION_MANIFEST_URL` and `ATLAS_ASSETS_BASE_URL` override the
+  endpoints, for mirrors and tests.
+* Atlas build channel (signed Ed25519 manifest): still future work.
+
+**Verified against the real service:** `atlas install latest` downloaded
+Minecraft 26.3 (5,217 files, 584 MB) in about 64 s. `atlas verify 26.3`
+re-hashed all 5,219 recorded files in 4.4 s.
+
+### Original design notes
 
 * **Catalog sources** implement a `VersionSource` trait:
   * `MojangSource` reads `piston-meta.mojang.com/mc/game/version_manifest_v2.json`.
@@ -409,7 +462,8 @@ that approval exists.
 
 1. **Done:** workspace, window, navigation, settings, configuration,
    logging, data dirs, data-root move, CLI base.
-2. Version metadata, downloads, verification, installation, update plumbing.
+2. **Done:** version metadata, downloads, verification, installation,
+   repair, removal, update check, detection and reuse.
 3. Microsoft auth, accounts, installations, process launching, game logs.
 4. Servers, mods, resource packs, worlds, full CLI.
 5. MCP, self-update, packaging and installers, crash handling.

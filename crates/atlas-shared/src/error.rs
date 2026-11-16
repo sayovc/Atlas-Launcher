@@ -35,6 +35,8 @@ pub enum ErrorCode {
     GameCrashed,
     InvalidInstallation,
     UpdateVerificationFailed,
+    Cancelled,
+    NetworkError,
     // Generic
     InvalidArgument,
     NotImplemented,
@@ -60,6 +62,8 @@ impl ErrorCode {
             Self::GameCrashed => "GAME_CRASHED",
             Self::InvalidInstallation => "INVALID_INSTALLATION",
             Self::UpdateVerificationFailed => "UPDATE_VERIFICATION_FAILED",
+            Self::Cancelled => "CANCELLED",
+            Self::NetworkError => "NETWORK_ERROR",
             Self::InvalidArgument => "INVALID_ARGUMENT",
             Self::NotImplemented => "NOT_IMPLEMENTED",
             Self::Internal => "INTERNAL",
@@ -123,6 +127,11 @@ impl AtlasError {
             format!("'{action}' is destructive and needs explicit confirmation."),
         )
         .suggest("Re-run with confirmation (CLI: --yes; GUI: confirm the dialog).")
+    }
+
+    pub fn cancelled() -> Self {
+        Self::new(ErrorCode::Cancelled, "The operation was cancelled.")
+            .suggest("Start it again when you're ready; completed files are kept.")
     }
 
     pub fn not_implemented(feature: &str) -> Self {

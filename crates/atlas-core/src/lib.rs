@@ -6,9 +6,13 @@
 
 mod data_root;
 mod status;
+mod versions;
 
 pub use data_root::MoveReport;
 pub use status::{GameState, StatusReport};
+pub use versions::{JobId, JobKind, JobSnapshot, JobState, VersionList, VersionRow};
+pub use atlas_versions::{DetectedInstall, InstalledVersion, VerifyReport, VersionKind};
+pub use atlas_downloads::ProgressSnapshot;
 
 use atlas_config::{AtlasPaths, Settings, SettingsStore};
 use atlas_logging::{LogBuffer, LogConfig, LogFilter, LogHandle, LogRecord};
@@ -28,7 +32,7 @@ impl Confirmation {
     pub fn from_bool(yes: bool) -> Self {
         if yes { Self::Confirmed } else { Self::NotConfirmed }
     }
-    fn require(self, action: &str) -> AtlasResult<()> {
+    pub(crate) fn require(self, action: &str) -> AtlasResult<()> {
         match self {
             Self::Confirmed => Ok(()),
             Self::NotConfirmed => Err(AtlasError::confirmation_required(action)),
@@ -41,6 +45,8 @@ pub struct Atlas {
     state: RwLock<State>,
     startup_warnings: Vec<AtlasError>,
     log_buffer: Option<LogBuffer>,
+    pub(crate) rt: tokio::runtime::Runtime,
+    pub(crate) jobs: std::sync::Arc<std::sync::Mutex<versions::Jobs>>,
 }
 
 struct State {
@@ -58,10 +64,18 @@ impl Atlas {
         for w in &outcome.warnings {
             tracing::warn!(code = %w.code, details = %w.details, "{}", w.message);
         }
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(4)
+            .thread_name("atlas-worker")
+            .enable_all()
+            .build()
+            .map_err(|e| AtlasError::new(ErrorCode::Internal, "Could not start background workers.").details(e))?;
         Ok(Self {
             state: RwLock::new(State { paths, store, settings: outcome.settings }),
             startup_warnings: outcome.warnings,
             log_buffer: None,
+            rt,
+            jobs: Default::default(),
         })
     }
 
@@ -180,6 +194,10 @@ impl Atlas {
     /// safety rules.
     pub fn move_data_root(&self, new_root: &Path, confirm: Confirmation) -> AtlasResult<MoveReport> {
         confirm.require("move the Atlas data folder")?;
+        if self.jobs.lock().unwrap_or_else(|p| p.into_inner()).any_running() {
+            return Err(AtlasError::new(ErrorCode::DataDirInvalid, "Downloads are running.")
+                .suggest("Wait for installs and repairs to finish (or cancel them), then move the data folder."));
+        }
         let mut st = self.write();
         if std::env::var_os(atlas_config::paths::ENV_DATA_DIR).is_some_and(|v| !v.is_empty()) {
             return Err(AtlasError::new(ErrorCode::DataDirInvalid, "The data folder is fixed by the ATLAS_DATA_DIR environment variable.")

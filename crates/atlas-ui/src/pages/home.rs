@@ -92,7 +92,12 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                 ui.label(RichText::new("Game status").color(theme::TEXT_DIM));
                 widgets::pill(ui, &state_text(&status.game_state), state_color(&status.game_state));
                 ui.end_row();
-                widgets::kv(ui, "Install / update", RichText::new("No installation to check").color(theme::TEXT_FAINT));
+                let iu = match (&status.version_update, status.installed_versions) {
+                    (Some(v), n) => RichText::new(format!("{n} installed · {v} available")).color(theme::WARN),
+                    (None, 0) => RichText::new("No versions installed").color(theme::TEXT_FAINT),
+                    (None, n) => RichText::new(format!("{n} installed · up to date")).color(theme::OK),
+                };
+                widgets::kv(ui, "Versions", iu);
             });
         });
 

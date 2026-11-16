@@ -27,14 +27,13 @@ pub fn section_title(ui: &mut egui::Ui, title: &str) {
 }
 
 pub fn pill(ui: &mut egui::Ui, text: &str, color: Color32) {
-    egui::Frame::new()
-        .fill(color.gamma_multiply(0.14))
-        .stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.45)))
-        .corner_radius(20)
-        .inner_margin(egui::Margin::symmetric(9, 3))
-        .show(ui, |ui| {
-            ui.label(RichText::new(text).size(11.5).color(color));
-        });
+    // Painted at a fixed size so it never stretches with the surrounding layout.
+    let galley = ui.painter().layout_no_wrap(text.to_owned(), egui::FontId::proportional(11.5), color);
+    let size = galley.size() + egui::vec2(18.0, 6.0);
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let p = ui.painter();
+    p.rect(rect, 20.0, color.gamma_multiply(0.14), egui::Stroke::new(1.0, color.gamma_multiply(0.45)), egui::StrokeKind::Inside);
+    p.galley(rect.center() - galley.size() / 2.0, galley, color);
 }
 
 /// Primary call-to-action button in the accent colour.

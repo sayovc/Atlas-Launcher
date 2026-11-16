@@ -90,3 +90,89 @@ fn logs_are_written_and_queryable() {
     assert!(!ok);
     assert_eq!(v["error"]["code"], "INVALID_ARGUMENT");
 }
+
+// ---------------------------------------------------------------- versions
+
+fn sha1(b: &[u8]) -> String {
+    atlas_downloads::sha1_hex(b)
+}
+
+/// Minimal fake Mojang tree: one version with a client jar and one asset.
+fn fake_mojang() -> (atlas_downloads::testing::TestServer, Vec<u8>) {
+    let (srv, files) = atlas_downloads::testing::serve_dynamic(true);
+    let base = srv.base.clone();
+    let jar: Vec<u8> = (0..50_000u32).map(|i| (i % 251) as u8).collect();
+    let asset = b"hello asset".to_vec();
+    let ah = sha1(&asset);
+    let index = serde_json::to_vec(&serde_json::json!({"objects": {"a.txt": {"hash": ah, "size": asset.len()}}})).unwrap();
+    let version = serde_json::to_vec(&serde_json::json!({
+        "id": "9.9-test", "type": "release", "mainClass": "x.Main",
+        "assetIndex": {"id": "t", "sha1": sha1(&index), "size": index.len(), "totalSize": 1, "url": format!("{base}/idx.json")},
+        "downloads": {"client": {"sha1": sha1(&jar), "size": jar.len(), "url": format!("{base}/client.jar")}},
+        "libraries": []
+    })).unwrap();
+    let manifest = serde_json::to_vec(&serde_json::json!({
+        "latest": {"release": "9.9-test", "snapshot": "9.9-test"},
+        "versions": [{"id": "9.9-test", "type": "release", "url": format!("{base}/v.json"), "time": "x", "releaseTime": "2030-01-01T00:00:00+00:00", "sha1": sha1(&version)}]
+    })).unwrap();
+    let mut f = files.lock().unwrap();
+    f.insert("/manifest.json".into(), manifest);
+    f.insert("/v.json".into(), version);
+    f.insert("/idx.json".into(), index);
+    f.insert("/client.jar".into(), jar.clone());
+    f.insert(format!("/{}/{}", &ah[..2], ah), asset);
+    drop(f);
+    (srv, jar)
+}
+
+#[test]
+fn version_lifecycle_through_cli() {
+    let e = env();
+    let (srv, _jar) = fake_mojang();
+    let run = |args: &[&str]| {
+        let out = e.cmd()
+            .env("ATLAS_VERSION_MANIFEST_URL", format!("{}/manifest.json", srv.base))
+            .env("ATLAS_ASSETS_BASE_URL", &srv.base)
+            .arg("--json").args(args).output().unwrap();
+        let v: Value = serde_json::from_slice(&out.stdout).unwrap_or_else(|_| panic!("not json: {}", String::from_utf8_lossy(&out.stdout)));
+        (out.status.code(), v)
+    };
+
+    let (code, v) = run(&["versions", "--refresh"]);
+    assert_eq!(code, Some(0), "{v}");
+    assert_eq!(v["data"]["latest_release"], "9.9-test");
+
+    let (code, v) = run(&["install", "latest"]);
+    assert_eq!(code, Some(0), "{v}");
+    assert_eq!(v["data"]["state"]["state"], "done");
+
+    let (_, v) = run(&["versions", "--installed"]);
+    assert_eq!(v["data"][0]["id"], "9.9-test");
+
+    let (code, _) = run(&["verify", "9.9-test"]);
+    assert_eq!(code, Some(0));
+
+    // Corrupt the jar: verify fails, repair fixes it.
+    let (_, paths) = run(&["paths"]);
+    let jar_path = std::path::Path::new(paths["data"]["data_root"].as_str().unwrap()).join("versions/9.9-test/9.9-test.jar");
+    std::fs::write(&jar_path, b"broken").unwrap();
+    let (code, v) = run(&["verify", "9.9-test"]);
+    assert_eq!(code, Some(1));
+    assert_eq!(v["error"]["code"], "INVALID_INSTALLATION");
+    let (code, v) = run(&["repair", "9.9-test"]);
+    assert_eq!(code, Some(0), "{v}");
+    let (code, _) = run(&["verify", "9.9-test"]);
+    assert_eq!(code, Some(0));
+
+    // Remove needs --yes.
+    let (code, v) = run(&["remove", "9.9-test"]);
+    assert_eq!(code, Some(3));
+    assert_eq!(v["error"]["code"], "CONFIRMATION_REQUIRED");
+    let (code, _) = run(&["remove", "9.9-test", "--yes"]);
+    assert_eq!(code, Some(0));
+    assert!(!jar_path.exists());
+
+    let (code, v) = run(&["install", "0.0-nope"]);
+    assert_eq!(code, Some(1));
+    assert_eq!(v["error"]["code"], "VERSION_NOT_FOUND");
+}

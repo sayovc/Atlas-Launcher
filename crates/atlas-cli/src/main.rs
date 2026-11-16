@@ -37,6 +37,38 @@ enum Command {
     /// Manage the Atlas data folder.
     #[command(subcommand, name = "data-dir")]
     DataDir(DataDirCmd),
+    /// List Minecraft versions (from Mojang's official list).
+    Versions {
+        /// Fetch a fresh list from the network.
+        #[arg(long)]
+        refresh: bool,
+        /// Only installed versions.
+        #[arg(long)]
+        installed: bool,
+        /// Include snapshots.
+        #[arg(long)]
+        snapshots: bool,
+        /// Include everything (snapshots, betas, alphas).
+        #[arg(long)]
+        all: bool,
+        /// Maximum rows (human output).
+        #[arg(long, short = 'n', default_value_t = 30)]
+        limit: usize,
+    },
+    /// Install a version: an id, `latest` or `latest-snapshot`.
+    Install { version: String },
+    /// Check every file of an installed version against its checksum.
+    Verify { version: String },
+    /// Re-download missing or corrupt files of an installed version.
+    Repair { version: String },
+    /// Remove an installed version (destructive). Shared libraries and assets are kept.
+    Remove {
+        version: String,
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Find existing Minecraft folders Atlas can reuse verified files from (read-only).
+    Detect,
     /// Show launcher logs.
     Logs {
         /// Minimum level: trace, debug, info, warn, error.
@@ -207,6 +239,55 @@ fn run(cli: Cli) -> AtlasResult<Output> {
                 Output { data: to_value(&r), human }
             }
         },
+        Command::Versions { refresh, installed, snapshots, all, limit } => {
+            if installed {
+                let list = atlas.installed_versions()?;
+                let human = if list.is_empty() {
+                    "No versions installed. Try: atlas install latest".to_string()
+                } else {
+                    list.iter().map(|v| format!("{:<22} {:<9} {:>5} files  {:>8}", v.id, v.kind.label(), v.files, human_bytes(v.bytes))).collect::<Vec<_>>().join("\n")
+                };
+                Output { data: to_value(&list), human }
+            } else {
+                let list = atlas.versions(refresh)?;
+                let rows: Vec<_> = list.versions.iter().filter(|v| all || v.kind == atlas_core::VersionKind::Release || (snapshots && v.kind == atlas_core::VersionKind::Snapshot)).collect();
+                let mut human = format!("Latest release: {}   Latest snapshot: {}{}\n", list.latest_release, list.latest_snapshot, if list.stale { "   (offline: cached list)" } else { "" });
+                for v in rows.iter().take(limit) {
+                    human.push_str(&format!("{:<22} {:<9} {}  {}\n", v.id, v.kind.label(), v.release_time.get(..10).unwrap_or(""), if v.installed { "installed" } else { "" }));
+                }
+                if rows.len() > limit {
+                    human.push_str(&format!("… {} more (use -n)", rows.len() - limit));
+                }
+                Output { data: to_value(&list), human }
+            }
+        }
+        Command::Install { version } => run_job(&atlas, atlas.start_install(&version)?, cli.json)?,
+        Command::Repair { version } => run_job(&atlas, atlas.start_repair(&version)?, cli.json)?,
+        Command::Verify { version } => {
+            let r = atlas.verify_version(&version)?;
+            let human = if r.ok() {
+                format!("{}: all {} files verified.", r.id, r.checked)
+            } else {
+                format!("{}: {} missing, {} corrupt of {} files. Run: atlas repair {}", r.id, r.missing.len(), r.corrupt.len(), r.checked, r.id)
+            };
+            if !r.ok() {
+                return Err(AtlasError::new(ErrorCode::InvalidInstallation, human).details(format!("missing: {:?}\ncorrupt: {:?}", r.missing, r.corrupt)).suggest(format!("Run `atlas repair {}`.", r.id)));
+            }
+            Output { data: to_value(&r), human }
+        }
+        Command::Remove { version, yes } => {
+            atlas.remove_version(&version, Confirmation::from_bool(yes))?;
+            Output { data: json!({ "removed": version }), human: format!("Removed {version}. Shared libraries and assets were kept.") }
+        }
+        Command::Detect => {
+            let found = atlas.detect_minecraft();
+            let human = if found.is_empty() {
+                "No existing Minecraft folders found. Set one with: atlas settings set game.minecraft_dir \"/path/to/.minecraft\"".to_string()
+            } else {
+                found.iter().map(|d| format!("{:<28} {}  ({} versions)", d.kind.label(), d.path.display(), d.versions.len())).collect::<Vec<_>>().join("\n")
+            };
+            Output { data: to_value(&found), human }
+        }
         Command::Logs { level, search, source, limit } => {
             let min_level = LogLevel::parse(&level).ok_or_else(|| {
                 AtlasError::new(ErrorCode::InvalidArgument, format!("Unknown log level '{level}'."))
@@ -226,4 +307,55 @@ fn run(cli: Cli) -> AtlasResult<Output> {
             Output { data: to_value(&recs), human }
         }
     })
+}
+
+fn human_bytes(b: u64) -> String {
+    const U: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut v = b as f64;
+    let mut i = 0;
+    while v >= 1024.0 && i < U.len() - 1 {
+        v /= 1024.0;
+        i += 1;
+    }
+    if i == 0 { format!("{b} B") } else { format!("{v:.1} {}", U[i]) }
+}
+
+/// Wait for a background job, drawing a progress line on stderr (human mode).
+fn run_job(atlas: &Atlas, id: atlas_core::JobId, json: bool) -> AtlasResult<Output> {
+    use std::io::Write;
+    let tty = !json;
+    let snap = atlas
+        .wait_job(id, |s| {
+            if tty {
+                let p = &s.progress;
+                eprint!(
+                    "\r{:>5.1}%  {}/{} files  {} / {}  {}/s   ",
+                    p.fraction() * 100.0,
+                    p.done_files,
+                    p.total_files,
+                    human_bytes(p.done_bytes),
+                    human_bytes(p.total_bytes),
+                    human_bytes(s.speed_bps as u64)
+                );
+                let _ = std::io::stderr().flush();
+            }
+        })
+        .ok_or_else(|| AtlasError::new(ErrorCode::Internal, "The job disappeared."))?;
+    if tty {
+        eprintln!();
+    }
+    match &snap.state {
+        atlas_core::JobState::Done => {
+            let p = &snap.progress;
+            let human = format!(
+                "{} {} in {:.1}s: {} downloaded, {} reused from other launchers, {} already valid.",
+                match snap.kind { atlas_core::JobKind::Install => "Installed", atlas_core::JobKind::Repair => "Repaired" },
+                snap.version, snap.elapsed_secs, p.downloaded_files, p.reused_files, p.already_valid_files
+            );
+            Ok(Output { data: to_value(&snap), human })
+        }
+        atlas_core::JobState::Failed { error } => Err(error.clone()),
+        atlas_core::JobState::Cancelled => Err(AtlasError::cancelled()),
+        atlas_core::JobState::Running => Err(AtlasError::new(ErrorCode::Internal, "Job still running.")),
+    }
 }

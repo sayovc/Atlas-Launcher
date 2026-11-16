@@ -47,6 +47,8 @@ pub const MANAGED_SUBDIRS: &[&str] = &[
     "logs",
     "accounts",
     "runtimes",
+    "libraries",
+    "assets",
 ];
 /// Files in the data root that Atlas owns.
 pub const MANAGED_FILES: &[&str] = &["settings.toml"];

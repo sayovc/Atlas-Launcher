@@ -47,6 +47,9 @@ pub struct StatusReport {
     pub installation: Option<String>,
     pub minecraft_version: Option<String>,
     pub game_state: GameState,
+    pub installed_versions: usize,
+    /// Newest release not installed yet (from the cached version list).
+    pub version_update: Option<String>,
     /// Features whose backend is not built yet; front-ends show them as such.
     pub unavailable: Vec<&'static str>,
     pub warnings: Vec<AtlasError>,
@@ -67,7 +70,9 @@ pub(crate) fn compute(atlas: &Atlas) -> StatusReport {
         // state is NoInstallation. An installation.toml written by a future
         // version is reported as NotInstalled rather than guessed Ready.
         game_state: if has_installation { GameState::NotInstalled } else { GameState::NoInstallation },
-        unavailable: vec!["accounts", "installations", "versions", "launch", "mods", "servers", "worlds", "updates", "mcp"],
+        installed_versions: atlas.installed_versions().map(|v| v.len()).unwrap_or(0),
+        version_update: atlas.version_update(),
+        unavailable: vec!["accounts", "installations", "launch", "mods", "servers", "worlds", "self_update", "mcp"],
         warnings: atlas.startup_warnings().to_vec(),
     }
 }
