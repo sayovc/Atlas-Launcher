@@ -1,0 +1,19 @@
+[package]
+publish = false
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+base64 = "0.23.1"
+ed25519-dalek = "3.0.0"
+hex = "0.4.3"
+rand = "0.10.4"
+serde_json = "1.0.154"
+sha2 = "0.11.0"
+
+[lints]
+workspace = true

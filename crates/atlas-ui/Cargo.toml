@@ -8,6 +8,7 @@ edition = "2024"
 atlas-config = { version = "0.1.0", path = "../atlas-config" }
 atlas-core = { version = "0.1.0", path = "../atlas-core" }
 atlas-logging = { version = "0.1.0", path = "../atlas-logging" }
+atlas-mcp = { version = "0.1.0", path = "../atlas-mcp" }
 atlas-shared = { version = "0.1.0", path = "../atlas-shared" }
 base64 = "0.23.1"
 eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
@@ -22,3 +23,14 @@ path = "src/main.rs"
 
 [lints]
 workspace = true
+
+[package.metadata.deb]
+name = "atlas-launcher"
+maintainer = "Sayo"
+extended-description = "An open-source launcher for Minecraft: Java Edition. Not affiliated with Mojang or Microsoft."
+section = "games"
+assets = [
+  ["target/release/atlas-launcher", "usr/bin/", "755"],
+  ["target/release/atlas", "usr/bin/", "755"],
+  ["../../packaging/atlas-launcher.desktop", "usr/share/applications/", "644"],
+]

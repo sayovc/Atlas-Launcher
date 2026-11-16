@@ -24,6 +24,16 @@ fn main() -> eframe::Result<()> {
         }
     };
     let log_handle = atlas.init_logging(cfg!(debug_assertions)).ok();
+    atlas_core::crash::install_panic_hook(atlas.paths().launcher_logs_dir());
+    let mut startup_notes = vec![];
+    match atlas.update_startup_check() {
+        atlas_core::StartupOutcome::RolledBack(v) => startup_notes.push(format!("Atlas {v} kept failing to start, so the previous version was restored.")),
+        atlas_core::StartupOutcome::TryingUpdate(v) => tracing::info!(version = %v, "first starts after an update"),
+        atlas_core::StartupOutcome::Normal => {}
+    }
+    for r in atlas_core::crash::unseen_reports(&atlas.paths().launcher_logs_dir()) {
+        startup_notes.push(format!("Atlas closed unexpectedly last time. A report was saved to {}", r.display()));
+    }
     let atlas = Arc::new(atlas);
 
     let options = eframe::NativeOptions {
@@ -38,7 +48,13 @@ fn main() -> eframe::Result<()> {
     let result = eframe::run_native(
         "Atlas Launcher",
         options,
-        Box::new(move |cc| Ok(Box::new(app::AtlasApp::new(cc, atlas)))),
+        Box::new(move |cc| {
+            let mut app = app::AtlasApp::new(cc, atlas);
+            for n in startup_notes {
+                app.push_info(n);
+            }
+            Ok(Box::new(app))
+        }),
     );
     tracing::info!("Atlas window closed");
     drop(log_handle);

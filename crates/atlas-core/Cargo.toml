@@ -12,6 +12,7 @@ atlas-instances = { version = "0.1.0", path = "../atlas-instances" }
 atlas-launch = { version = "0.1.0", path = "../atlas-launch" }
 atlas-logging = { version = "0.1.0", path = "../atlas-logging" }
 atlas-shared = { version = "0.1.0", path = "../atlas-shared" }
+atlas-updater = { version = "0.1.0", path = "../atlas-updater" }
 atlas-versions = { version = "0.1.0", path = "../atlas-versions" }
 open = "5.4.5"
 serde = { version = "1.0.229", features = ["derive"] }

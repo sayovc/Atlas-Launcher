@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas Launcher
+Comment=Launcher for Minecraft: Java Edition
+Exec=atlas-launcher
+Categories=Game;
+Terminal=false

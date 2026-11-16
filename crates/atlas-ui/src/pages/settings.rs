@@ -54,6 +54,9 @@ pub struct SettingsPage {
     new_data_dir: String,
     confirm: Option<Confirm>,
     moving: Option<mpsc::Receiver<AtlasResult<MoveReport>>>,
+    update_check: Option<mpsc::Receiver<AtlasResult<Option<atlas_core::UpdateInfo>>>>,
+    update_found: Option<atlas_core::UpdateInfo>,
+    update_msg: String,
 }
 
 impl SettingsPage {
@@ -71,6 +74,9 @@ impl SettingsPage {
             new_data_dir: String::new(),
             confirm: None,
             moving: None,
+            update_check: None,
+            update_found: None,
+            update_msg: String::new(),
         };
         p.load(atlas.settings());
         p
@@ -260,9 +266,52 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                         ui.radio_value(&mut d.general.after_launch, AfterLaunch::Minimize, "Minimize");
                         ui.radio_value(&mut d.general.after_launch, AfterLaunch::Close, "Close");
                     });
-                    row(ui, "Check for Atlas updates on start", "Takes effect once the updater exists.", |ui| {
+                    row(ui, "Check for Atlas updates on start", "Only signed releases from GitHub are ever installed.", |ui| {
                         ui.checkbox(&mut d.general.check_updates_on_start, "");
                     });
+                    ui.separator();
+                    widgets::section_title(ui, "Updates");
+                    ui.label(RichText::new(format!("You're running Atlas {}.", atlas_shared::ATLAS_VERSION)).color(theme::TEXT_DIM));
+                    if let Some(rx) = &sp.update_check
+                        && let Ok(r) = rx.try_recv()
+                    {
+                        sp.update_check = None;
+                        match r {
+                            Ok(Some(u)) => {
+                                sp.update_msg = format!("Atlas {} is available.", u.version);
+                                sp.update_found = Some(u);
+                            }
+                            Ok(None) => sp.update_msg = "You're up to date.".into(),
+                            Err(e) => sp.update_msg = format!("{} {}", e.message, e.suggestion),
+                        }
+                    }
+                    ui.horizontal(|ui| {
+                        if sp.update_check.is_some() {
+                            ui.spinner();
+                            ui.label("Checking…");
+                        } else if ui.button("Check for updates").clicked() {
+                            let (tx, rx) = mpsc::channel();
+                            let (a, c) = (atlas.clone(), ui.ctx().clone());
+                            std::thread::spawn(move || {
+                                let _ = tx.send(a.check_for_update());
+                                c.request_repaint();
+                            });
+                            sp.update_check = Some(rx);
+                        }
+                        if let Some(u) = sp.update_found.clone()
+                            && widgets::primary_button(ui, "Install and restart", accent, true, egui::vec2(180.0, 32.0)).clicked()
+                        {
+                            match atlas.install_update(&u) {
+                                Ok(exe) => {
+                                    let _ = atlas_updater_restart(&exe);
+                                }
+                                Err(e) => sp.update_msg = format!("{} {}", e.message, e.suggestion),
+                            }
+                        }
+                    });
+                    if !sp.update_msg.is_empty() {
+                        ui.label(RichText::new(&sp.update_msg).small().color(theme::TEXT_DIM));
+                    }
                 }
                 Tab::Appearance => {
                     row(ui, "Theme", "Atlas uses a dark theme.", |ui| {
@@ -379,9 +428,23 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                     row(ui, "Enable AI features", "Global switch. When off, nothing AI-related can run.", |ui| {
                         ui.checkbox(&mut d.advanced.ai.enabled, "");
                     });
-                    row(ui, "Local MCP server", "Opt-in, local-only, authenticated. Not built yet (Phase 5).", |ui| {
+                    row(ui, "Local MCP server", "Lets an AI assistant on this computer use Atlas through `atlas mcp`.", |ui| {
                         ui.add_enabled(d.advanced.ai.enabled, egui::Checkbox::new(&mut d.advanced.ai.mcp_enabled, ""));
                     });
+                    if saved.advanced.ai.mcp_allowed() {
+                        ui.horizontal(|ui| {
+                            if ui.button("Copy assistant config").on_hover_text("Includes your private MCP token").clicked() {
+                                match atlas_mcp::ensure_token(&paths.bootstrap_dir) {
+                                    Ok(t) => {
+                                        let exe = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join(if cfg!(windows) { "atlas.exe" } else { "atlas" }))).map(|p| p.display().to_string()).unwrap_or("atlas".into());
+                                        ui.ctx().copy_text(format!("{{\n  \"mcpServers\": {{\n    \"atlas\": {{ \"command\": \"{}\", \"args\": [\"mcp\"], \"env\": {{ \"ATLAS_MCP_TOKEN\": \"{t}\" }} }}\n  }}\n}}", exe.replace('\\', "\\\\")));
+                                    }
+                                    Err(e) => account_errors.push(e),
+                                }
+                            }
+                            ui.label(RichText::new("Destructive requests need you to run `atlas mcp approve <code>`.").small().color(theme::TEXT_FAINT));
+                        });
+                    }
                     ui.separator();
                     widgets::section_title(ui, "Data folder");
                     ui.label(RichText::new(paths.data_root.display().to_string()).monospace());
@@ -501,4 +564,9 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
     for e in account_errors {
         app.push_error(e);
     }
+}
+
+fn atlas_updater_restart(exe: &std::path::Path) -> std::io::Result<()> {
+    std::process::Command::new(exe).spawn()?;
+    std::process::exit(0);
 }

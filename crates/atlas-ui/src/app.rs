@@ -74,6 +74,8 @@ pub struct AtlasApp {
     pub worlds_page: pages::worlds::WorldsPage,
     pub server_addr: String,
     was_running: bool,
+    started: Instant,
+    healthy_marked: bool,
     applied_scale: f32,
 }
 
@@ -97,6 +99,8 @@ impl AtlasApp {
             worlds_page: Default::default(),
             server_addr: String::new(),
             was_running: false,
+            started: Instant::now(),
+            healthy_marked: false,
             atlas,
             page: Page::from_env().unwrap_or(Page::Home),
             page_changed_at: Instant::now(),
@@ -237,6 +241,11 @@ impl eframe::App for AtlasApp {
         let active = !matches!(self.status.game_state, atlas_core::GameState::Ready | atlas_core::GameState::NoInstallation | atlas_core::GameState::NotInstalled);
         if self.status_at.elapsed() > Duration::from_millis(if active { 300 } else { 1500 }) {
             self.refresh_status();
+        }
+        // an update that survives 10 seconds of normal running is a keeper
+        if !self.healthy_marked && self.started.elapsed() > Duration::from_secs(10) {
+            self.healthy_marked = true;
+            self.atlas.mark_update_healthy();
         }
         // "after launching" setting
         let running = matches!(self.status.game_state, atlas_core::GameState::Running { .. });

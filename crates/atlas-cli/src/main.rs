@@ -123,6 +123,16 @@ enum Command {
     },
     /// Import a Modrinth modpack (.mrpack) as a new installation.
     Import { pack: PathBuf },
+    /// Check for and install Atlas updates.
+    Update {
+        #[command(subcommand)]
+        cmd: Option<UpdateCmd>,
+    },
+    /// Local MCP server for AI assistants (off unless enabled in settings).
+    Mcp {
+        #[command(subcommand)]
+        cmd: Option<McpCmd>,
+    },
     /// Show launcher logs.
     Logs {
         /// Minimum level: trace, debug, info, warn, error.
@@ -138,6 +148,27 @@ enum Command {
         #[arg(long, short = 'n', default_value_t = 200)]
         limit: usize,
     },
+}
+
+#[derive(Subcommand)]
+enum UpdateCmd {
+    Check,
+    /// Download, verify and install the newest version.
+    Install,
+    /// Go back to the version before the last update.
+    Rollback,
+}
+
+#[derive(Subcommand)]
+enum McpCmd {
+    /// Serve MCP over stdin/stdout (what your assistant runs). Needs ATLAS_MCP_TOKEN.
+    Serve,
+    /// Show the token to put in your assistant's config.
+    Token,
+    /// List requests waiting for your approval.
+    Pending,
+    /// Allow one destructive action an assistant asked for.
+    Approve { code: String },
 }
 
 #[derive(Subcommand)]
@@ -288,7 +319,7 @@ fn main() -> ExitCode {
         Ok(out) => {
             if json {
                 println!("{}", json!({ "ok": true, "data": out.data }));
-            } else {
+            } else if !out.human.is_empty() {
                 println!("{}", out.human.trim_end());
             }
             ExitCode::SUCCESS
@@ -326,13 +357,14 @@ fn to_value<T: serde::Serialize>(v: &T) -> Value {
 fn run(cli: Cli) -> AtlasResult<Output> {
     let mut atlas = Atlas::open_default()?;
     let _log = atlas.init_logging(cli.verbose)?;
+    atlas_core::crash::install_panic_hook(atlas.paths().launcher_logs_dir());
     tracing::debug!("cli invoked");
 
     Ok(match cli.command {
         Command::Status => {
             let s = atlas.status();
             let mut human = format!(
-                "Atlas {}\nData folder:    {}\nAccount:        {}\nInstallation:   {}\nMinecraft:      {}\nGame state:     {:?}\nNot yet built:  {}",
+                "Atlas {}\nData folder:    {}\nAccount:        {}\nInstallation:   {}\nMinecraft:      {}\nGame state:     {:?}\nNot set up:     {}",
                 s.atlas_version,
                 s.data_root.display(),
                 s.account.as_deref().unwrap_or("not signed in"),
@@ -686,6 +718,49 @@ fn run(cli: Cli) -> AtlasResult<Output> {
             let out = run_job(&atlas, job, cli.json)?;
             Output { human: format!("{}\nCreated installation {} ({}).", out.human, inst.name, inst.id), data: json!({ "installation": inst, "summary": summary }) }
         }
+        Command::Update { cmd } => match cmd.unwrap_or(UpdateCmd::Check) {
+            UpdateCmd::Check => match atlas.check_for_update()? {
+                Some(u) => Output { human: format!("Atlas {} is available (you have {}).\n{}\nInstall with: atlas update install", u.version, atlas_shared::ATLAS_VERSION, u.notes), data: to_value(&u) },
+                None => Output { human: format!("You're on the latest version ({}).", atlas_shared::ATLAS_VERSION), data: json!({ "update": null }) },
+            },
+            UpdateCmd::Install => match atlas.check_for_update()? {
+                Some(u) => {
+                    atlas.install_update(&u)?;
+                    Output { human: format!("Installed Atlas {}. Restart Atlas to use it.", u.version), data: to_value(&u) }
+                }
+                None => Output { human: "Already up to date.".into(), data: json!({ "update": null }) },
+            },
+            UpdateCmd::Rollback => {
+                atlas.rollback_update()?;
+                Output { human: "Restored the previous version.".into(), data: json!({ "rolled_back": true }) }
+            }
+        },
+        Command::Mcp { cmd } => match cmd.unwrap_or(McpCmd::Serve) {
+            McpCmd::Serve => {
+                atlas_mcp::check_enabled(&atlas)?;
+                atlas_mcp::check_token(&atlas, std::env::var("ATLAS_MCP_TOKEN").ok().as_deref())?;
+                tracing::info!("mcp server started on stdio");
+                atlas_mcp::Server::new(&atlas).run_stdio()?;
+                Output { data: Value::Null, human: String::new() }
+            }
+            McpCmd::Token => {
+                let t = atlas_mcp::ensure_token(&atlas.paths().bootstrap_dir)?;
+                let exe = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or("atlas".into());
+                let human = format!(
+                    "Token: {t}\n\nExample MCP client config:\n{{\n  \"mcpServers\": {{\n    \"atlas\": {{ \"command\": \"{exe}\", \"args\": [\"mcp\"], \"env\": {{ \"ATLAS_MCP_TOKEN\": \"{t}\" }} }}\n  }}\n}}\n\nThe server only runs while Settings → Advanced → AI and MCP are both on."
+                );
+                Output { data: json!({ "token": t }), human }
+            }
+            McpCmd::Pending => {
+                let list = atlas_mcp::Approvals::new(atlas.paths().data_root.join("mcp")).pending();
+                let human = if list.is_empty() { "Nothing waiting.".into() } else { list.iter().map(|p| format!("{}  {}", p.code, p.action)).collect::<Vec<_>>().join("\n") };
+                Output { data: to_value(&list), human }
+            }
+            McpCmd::Approve { code } => {
+                let p = atlas_mcp::Approvals::new(atlas.paths().data_root.join("mcp")).approve(&code)?;
+                Output { human: format!("Approved: {}. The assistant can go ahead now.", p.action), data: to_value(&p) }
+            }
+        },
         Command::Detect => {
             let found = atlas.detect_minecraft();
             let human = if found.is_empty() {

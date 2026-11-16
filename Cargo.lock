@@ -345,6 +345,7 @@ dependencies = [
  "atlas-core",
  "atlas-downloads",
  "atlas-logging",
+ "atlas-mcp",
  "atlas-shared",
  "clap",
  "predicates",
@@ -396,6 +397,7 @@ dependencies = [
  "atlas-launch",
  "atlas-logging",
  "atlas-shared",
+ "atlas-updater",
  "atlas-versions",
  "open",
  "serde",
@@ -465,6 +467,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-mcp"
+version = "0.1.0"
+dependencies = [
+ "atlas-config",
+ "atlas-core",
+ "atlas-logging",
+ "atlas-shared",
+ "hex",
+ "rand 0.10.4",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
 name = "atlas-shared"
 version = "0.1.0"
 dependencies = [
@@ -481,12 +499,30 @@ dependencies = [
  "atlas-config",
  "atlas-core",
  "atlas-logging",
+ "atlas-mcp",
  "atlas-shared",
  "base64",
  "eframe",
  "egui",
  "image",
  "rfd",
+ "tracing",
+]
+
+[[package]]
+name = "atlas-updater"
+version = "0.1.0"
+dependencies = [
+ "atlas-downloads",
+ "atlas-shared",
+ "base64",
+ "ed25519-dalek",
+ "self-replace",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
  "tracing",
 ]
 
@@ -1006,6 +1042,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "curve25519-dalek"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.1",
+ "curve25519-dalek-derive",
+ "digest 0.11.3",
+ "fiat-crypto",
+ "rustc_version",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek-derive"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "dbus"
 version = "0.9.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1162,6 +1225,28 @@ checksum = "31bcbef0d4263a63eb32c4834e5d711613035ce1333468e107d928923e21e6e2"
 dependencies = [
  "bytemuck",
  "emath",
+]
+
+[[package]]
+name = "ed25519"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a"
+dependencies = [
+ "signature",
+]
+
+[[package]]
+name = "ed25519-dalek"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
+dependencies = [
+ "curve25519-dalek",
+ "ed25519",
+ "sha2 0.11.0",
+ "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -1426,6 +1511,12 @@ name = "fearless_simd"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97b65636e5b9ef369943878ac74335ba1c55c1cb6adbf1e2c293c624248d693"
+
+[[package]]
+name = "fiat-crypto"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
 name = "find-msvc-tools"
@@ -3813,6 +3904,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "self-replace"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "609c5606d9d357b26e4ee1a7a01beac396628d0fa01ebbade2a09cefb88e65af"
+dependencies = [
+ "fastrand",
+ "tempfile",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "self_cell"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3973,6 +4075,12 @@ dependencies = [
  "errno",
  "libc",
 ]
+
+[[package]]
+name = "signature"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
 
 [[package]]
 name = "simd-adler32"
@@ -5441,6 +5549,18 @@ name = "xml-rs"
 version = "0.8.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
+
+[[package]]
+name = "xtask"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "ed25519-dalek",
+ "hex",
+ "rand 0.10.4",
+ "serde_json",
+ "sha2 0.11.0",
+]
 
 [[package]]
 name = "yoke"
