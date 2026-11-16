@@ -1,5 +1,7 @@
 name: Website
 
+# Publishes site/ to the gh-pages branch, which GitHub Pages serves at
+# https://sayovc.github.io/Atlas-Launcher/
 on:
   push:
     branches: [main]
@@ -7,27 +9,22 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
         with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          fetch-depth: 0
+      - name: Push site/ to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          SPLIT=$(git subtree split --prefix site HEAD)
+          git push --force origin "$SPLIT:refs/heads/gh-pages"
