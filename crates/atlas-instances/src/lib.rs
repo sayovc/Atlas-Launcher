@@ -21,6 +21,11 @@ pub struct Installation {
     pub name: String,
     /// Minecraft version id, e.g. "26.3".
     pub version: String,
+    #[serde(default)]
+    pub loader: atlas_versions::LoaderKind,
+    /// None = newest stable loader for this Minecraft version.
+    #[serde(default)]
+    pub loader_version: Option<String>,
     pub created: u64,
     pub last_played: Option<u64>,
     /// Built-in icon name (the UI maps it to a drawing).
@@ -59,6 +64,8 @@ impl Installation {
 pub struct Changes {
     pub name: Option<String>,
     pub version: Option<String>,
+    pub loader: Option<atlas_versions::LoaderKind>,
+    pub loader_version: Option<Option<String>>,
     pub icon: Option<String>,
     pub java_path: Option<Option<PathBuf>>,
     pub memory_min_mb: Option<Option<u32>>,
@@ -167,6 +174,8 @@ impl Installations {
             id: uuid::Uuid::new_v4().simple().to_string()[..12].to_string(),
             name,
             version: version.to_string(),
+            loader: atlas_versions::LoaderKind::Vanilla,
+            loader_version: None,
             created: now(),
             last_played: None,
             icon: "grass".into(),
@@ -193,7 +202,19 @@ impl Installations {
             i.name = check_name(&n)?;
         }
         if let Some(v) = c.version {
+            if v != i.version {
+                i.loader_version = None; // a pinned loader build rarely fits another MC version
+            }
             i.version = v;
+        }
+        if let Some(l) = c.loader {
+            if l != i.loader {
+                i.loader_version = None;
+            }
+            i.loader = l;
+        }
+        if let Some(v) = c.loader_version {
+            i.loader_version = v;
         }
         if let Some(v) = c.icon {
             i.icon = v;

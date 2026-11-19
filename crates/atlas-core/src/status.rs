@@ -67,7 +67,7 @@ pub(crate) fn compute(atlas: &Atlas) -> StatusReport {
         installation_id: sel.as_ref().map(|i| i.id.clone()),
         minecraft_version: sel.as_ref().map(|i| i.version.clone()),
         game_state: atlas.game_state(),
-        installed_versions: atlas.installed_versions().map(|v| v.len()).unwrap_or(0),
+        installed_versions: atlas.installed_versions().map(|v| v.iter().filter(|x| x.inherits_from.is_none()).count()).unwrap_or(0),
         version_update: atlas.version_update(),
         unavailable: if atlas.updates_available_in_build() { vec![] } else { vec!["self_update"] },
         warnings: atlas.startup_warnings().to_vec(),

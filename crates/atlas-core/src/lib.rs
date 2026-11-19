@@ -6,6 +6,7 @@ mod accounts;
 mod content;
 pub mod crash;
 mod data_root;
+mod discover;
 mod play;
 mod status;
 mod update;
@@ -13,6 +14,8 @@ mod versions;
 
 pub use data_root::MoveReport;
 pub use play::PlayOptions;
+pub use atlas_content::bundles::Bundle;
+pub use atlas_content::modrinth::{Hit, Installed as ContentItem, ProjectType, SearchResult, UpdateInfo as ContentUpdate};
 pub use atlas_updater::{Available as UpdateInfo, StartupOutcome};
 pub use atlas_content::{mods::{Loader, ModInfo}, mrpack::PackSummary, packs::{PackInfo, PackKind}, ping::PingResult, servers::Server, worlds::WorldInfo};
 pub use accounts::LoginState;
@@ -21,7 +24,7 @@ pub use atlas_instances::{Changes as InstallationChanges, Installation};
 pub use atlas_launch::GameExit;
 pub use status::{GameState, StatusReport};
 pub use versions::{JobId, JobKind, JobSnapshot, JobState, VersionList, VersionRow};
-pub use atlas_versions::{DetectedInstall, InstalledVersion, VerifyReport, VersionKind};
+pub use atlas_versions::{DetectedInstall, InstalledVersion, LoaderKind, LoaderVersion, VerifyReport, VersionKind};
 pub use atlas_downloads::ProgressSnapshot;
 
 use atlas_config::{AtlasPaths, Settings, SettingsStore};

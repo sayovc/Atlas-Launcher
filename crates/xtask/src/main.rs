@@ -3,6 +3,7 @@
 //!   keygen [--out FILE]                     make a release signing key
 //!   manifest --version V --base-url URL DIR write DIR/atlas-update.json
 //!   sign FILE                               write FILE.sig (key from ATLAS_UPDATE_KEY or --key FILE)
+//!   icons                                   regenerate packaging/icons from the Atlas mark
 
 use base64::Engine as _;
 use ed25519_dalek::{Signer, SigningKey};
@@ -85,9 +86,65 @@ fn main() {
             std::fs::write(Path::new(&out), sig).unwrap_or_else(|e| die(&e.to_string()));
             println!("wrote {out}");
         }
+        Some("icons") => {
+            let dir = Path::new("packaging/icons");
+            std::fs::create_dir_all(dir).unwrap_or_else(|e| die(&e.to_string()));
+            for size in [32u32, 128, 256, 512] {
+                let img = render_icon(size);
+                img.save(dir.join(format!("{size}x{size}.png"))).unwrap_or_else(|e| die(&e.to_string()));
+            }
+            render_icon(256).save(dir.join("icon.ico")).unwrap_or_else(|e| die(&e.to_string()));
+            println!("wrote packaging/icons");
+        }
         _ => {
             eprintln!("usage: cargo xtask keygen | manifest --version V --base-url URL DIR | sign FILE");
             std::process::exit(2);
         }
     }
+}
+
+/// Same globe mark as the app, drawn with 4x supersampling for smooth edges.
+fn render_icon(size: u32) -> image::RgbaImage {
+    let ss = 4u32;
+    let n = size * ss;
+    let c = n as f32 / 2.0;
+    let r = c * 0.74;
+    let w = n as f32 * 0.045;
+    let accent = [0x3f, 0xd0, 0xc0];
+    let mut big = vec![[0u8; 4]; (n * n) as usize];
+    for y in 0..n {
+        for x in 0..n {
+            let (dx, dy) = (x as f32 + 0.5 - c, y as f32 + 0.5 - c);
+            let d = (dx * dx + dy * dy).sqrt();
+            let mut px = [0u8; 4];
+            // rounded dark tile
+            let (ax, ay) = (dx.abs() - c * 0.78, dy.abs() - c * 0.78);
+            let corner = (ax.max(0.0).powi(2) + ay.max(0.0).powi(2)).sqrt();
+            if corner < c * 0.2 {
+                px = [0x10, 0x14, 0x1b, 255];
+            }
+            let (rx, ry) = (dx * 0.91 + dy * 0.41, -dx * 0.41 + dy * 0.91);
+            let ring = (d - r).abs() < w;
+            let mer = (((rx / (r * 0.42)).powi(2) + (ry / r).powi(2)).sqrt() - 1.0).abs() * r < w * 0.8;
+            let lat = (((rx / r).powi(2) + (ry / (r * 0.34)).powi(2)).sqrt() - 1.0).abs() * r * 0.6 < w * 0.8;
+            let moon = ((dx - r * 0.66).powi(2) + (dy + r * 0.66).powi(2)).sqrt() < r * 0.15;
+            if ring || moon || ((mer || lat) && d < r) {
+                px = [accent[0], accent[1], accent[2], 255];
+            }
+            big[(y * n + x) as usize] = px;
+        }
+    }
+    image::RgbaImage::from_fn(size, size, |x, y| {
+        let mut acc = [0u32; 4];
+        for sy in 0..ss {
+            for sx in 0..ss {
+                let p = big[((y * ss + sy) * n + x * ss + sx) as usize];
+                for i in 0..4 {
+                    acc[i] += p[i] as u32;
+                }
+            }
+        }
+        let k = ss * ss;
+        image::Rgba([(acc[0] / k) as u8, (acc[1] / k) as u8, (acc[2] / k) as u8, (acc[3] / k) as u8])
+    })
 }

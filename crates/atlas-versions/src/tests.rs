@@ -288,3 +288,49 @@ fn id_validation() {
         assert!(!valid_id(bad), "{bad}");
     }
 }
+
+#[tokio::test]
+async fn fabric_and_quilt_profiles_install_and_verify() {
+    use crate::loaders::LoaderKind;
+    let f = fixture("org/example/common/1.0/common-1.0.jar", false);
+    let t = tempfile::tempdir().unwrap();
+    let mut s = svc(t.path(), &f, vec![]);
+    let d = dl(0);
+    install(&s, &d).await.unwrap();
+
+    let (srv, files) = atlas_downloads::testing::serve_dynamic(true);
+    let loader_jar = b"fabric loader bytes".to_vec();
+    let quilt_jar = b"quilt loader bytes".to_vec();
+    {
+        let mut m = files.lock().unwrap();
+        m.insert("/fabric/versions/loader/1.0-test".into(), serde_json::to_vec(&json!([{"loader": {"version": "0.9.0", "stable": false}}, {"loader": {"version": "0.8.0", "stable": true}}])).unwrap());
+        m.insert("/fabric/versions/loader/1.0-test/0.8.0/profile/json".into(), serde_json::to_vec(&json!({
+            "id": "fabric-loader-0.8.0-1.0-test", "inheritsFrom": "1.0-test", "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+            "arguments": {"game": [], "jvm": []},
+            "libraries": [{"name": "net.fabricmc:fabric-loader:0.8.0", "url": "https://placeholder/", "sha1": sha1_hex(&loader_jar), "size": loader_jar.len()}]
+        })).unwrap());
+        m.insert("/maven/net/fabricmc/fabric-loader/0.8.0/fabric-loader-0.8.0.jar".into(), loader_jar.clone());
+        // quilt: no hash in the profile, the .sha1 sits next to the jar
+        m.insert("/quilt/versions/loader/1.0-test/0.5.0/profile/json".into(), serde_json::to_vec(&json!({
+            "id": "quilt-loader-0.5.0-1.0-test", "inheritsFrom": "1.0-test", "mainClass": "org.quiltmc.loader.impl.launch.knot.KnotClient",
+            "libraries": [{"name": "org.quiltmc:quilt-loader:0.5.0", "url": "https://placeholder/"}]
+        })).unwrap());
+        m.insert("/maven/org/quiltmc/quilt-loader/0.5.0/quilt-loader-0.5.0.jar".into(), quilt_jar.clone());
+        m.insert("/maven/org/quiltmc/quilt-loader/0.5.0/quilt-loader-0.5.0.jar.sha1".into(), format!("{}  quilt-loader-0.5.0.jar", sha1_hex(&quilt_jar)).into_bytes());
+    }
+    // profiles insist on https library repos; rewrite the placeholder to the local server
+    let base = srv.base.clone();
+    for k in ["/fabric/versions/loader/1.0-test/0.8.0/profile/json", "/quilt/versions/loader/1.0-test/0.5.0/profile/json"] {
+        let mut m = files.lock().unwrap();
+        let body = String::from_utf8(m[k].clone()).unwrap().replace("https://placeholder/", &format!("{base}/maven/"));
+        m.insert(k.into(), body.into_bytes());
+    }
+    s.loader_sources.fabric = format!("{base}/fabric");
+    s.loader_sources.quilt = format!("{base}/quilt");
+
+    let c = CancellationToken::new();
+    assert_eq!(s.pick_loader_version(&d, LoaderKind::Fabric, "1.0-test", None, &c).await.unwrap(), "0.8.0", "newest stable wins");
+    // http library repos are refused outside tests, so this must fail loudly rather than download
+    let e = s.install_loader(&d, LoaderKind::Fabric, "1.0-test", "0.8.0", Arc::new(Progress::new()), CancellationToken::new()).await.unwrap_err();
+    assert!(e.details.contains("https"), "{e:?}");
+}

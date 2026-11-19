@@ -57,11 +57,11 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
     let t = if settings.appearance.reduce_motion { 0.0 } else { ui.input(|i| i.time) as f32 };
     paint_contours(p, rect, accent, t);
     p.rect_stroke(rect, theme::RADIUS, egui::Stroke::new(1.0, theme::BORDER), egui::StrokeKind::Inside);
-    p.text(rect.left_top() + egui::vec2(26.0, 30.0), egui::Align2::LEFT_TOP, "Chart your next world.", egui::FontId::proportional(28.0), theme::TEXT);
+    p.text(rect.left_top() + egui::vec2(26.0, 30.0), egui::Align2::LEFT_TOP, "Modded Minecraft, one click.", egui::FontId::proportional(28.0), theme::TEXT);
     p.text(
         rect.left_top() + egui::vec2(26.0, 70.0),
         egui::Align2::LEFT_TOP,
-        "Atlas manages installations, versions and launches for Minecraft: Java Edition.",
+        "Fabric, hand-picked mods and every version of Minecraft: Java Edition, set up for you.",
         egui::FontId::proportional(14.0),
         theme::TEXT_DIM,
     );
@@ -110,7 +110,11 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
             });
         });
 
-        // Play
+        // Play (or the one-click setup when there's nothing yet)
+        if app.atlas.installations().map(|l| l.is_empty()).unwrap_or(true) {
+            setup_card(app, &mut cols[1], accent);
+            return;
+        }
         widgets::card(&mut cols[1], |ui| {
             widgets::section_title(ui, "Play");
             let insts = app.atlas.installations().unwrap_or_default();
@@ -118,10 +122,10 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                 let sel = app.atlas.selected_installation();
                 egui::ComboBox::from_id_salt("home-inst")
                     .width(ui.available_width())
-                    .selected_text(sel.as_ref().map(|i| format!("{}  ·  {}", i.name, i.version)).unwrap_or_default())
+                    .selected_text(sel.as_ref().map(|i| format!("{}  ·  {}  ·  {}", i.name, i.version, i.loader.label())).unwrap_or_default())
                     .show_ui(ui, |ui| {
                         for i in &insts {
-                            if ui.selectable_label(sel.as_ref().is_some_and(|s| s.id == i.id), format!("{}  ·  {}", i.name, i.version)).clicked() {
+                            if ui.selectable_label(sel.as_ref().is_some_and(|s| s.id == i.id), format!("{}  ·  {}  ·  {}", i.name, i.version, i.loader.label())).clicked() {
                                 let _ = app.atlas.select_installation(&i.id);
                                 app.refresh_status();
                             }
@@ -189,5 +193,48 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                 }
             });
         });
+    });
+}
+
+/// First run: make a Fabric installation with the picked bundles and play once it's ready.
+fn setup_card(app: &mut AtlasApp, ui: &mut egui::Ui, accent: egui::Color32) {
+    widgets::card(ui, |ui| {
+        widgets::section_title(ui, "Get started");
+        ui.label(RichText::new("Atlas Client").size(20.0).strong());
+        ui.label(RichText::new("The latest Minecraft with Fabric and a set of hand-picked open-source mods, ready in one click.").color(theme::TEXT_DIM));
+        ui.add_space(8.0);
+        for b in app.atlas.bundles() {
+            let mut on = app.setup_bundles.contains(b.id);
+            if ui.checkbox(&mut on, RichText::new(format!("{}  ", b.name)).strong()).on_hover_text(b.mods.join(", ")).changed() {
+                if on {
+                    app.setup_bundles.insert(b.id);
+                } else {
+                    app.setup_bundles.remove(b.id);
+                }
+            }
+            ui.label(RichText::new(b.blurb).small().color(theme::TEXT_FAINT));
+        }
+        ui.add_space(8.0);
+        let busy = app.play_after_job.is_some();
+        let w = ui.available_width();
+        if widgets::primary_button(ui, if busy { "Setting up…" } else { "Create & play" }, accent, !busy, egui::vec2(w, 48.0)).clicked() {
+            let ids: Vec<String> = app.atlas.bundles().iter().filter(|b| app.setup_bundles.contains(b.id)).map(|b| b.id.to_string()).collect();
+            match app.atlas.create_client("Atlas Client", "latest", &ids) {
+                Ok((_, Some(job))) => app.play_after_job = Some(job),
+                Ok((_, None)) => {
+                    if let Err(e) = app.atlas.play(None, Default::default()) {
+                        app.push_error(e);
+                    }
+                }
+                Err(e) => app.push_error(e),
+            }
+        }
+        if busy && let Some(j) = app.play_after_job.and_then(|j| app.atlas.job(j)) {
+            ui.add(egui::ProgressBar::new(j.progress.fraction()).show_percentage().animate(true).desired_height(6.0));
+        }
+        ui.add_space(4.0);
+        if ui.link("Or set up a plain installation yourself").clicked() {
+            app.navigate(Page::Installations);
+        }
     });
 }

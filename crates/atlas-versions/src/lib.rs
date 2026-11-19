@@ -13,13 +13,16 @@
 //! ```
 
 pub mod detect;
+mod forge;
 pub mod java;
+pub mod loaders;
 pub mod model;
 mod plan;
 mod record;
 pub mod rules;
 mod service;
 
+pub use loaders::{LoaderKind, LoaderVersion};
 pub use detect::{detect_minecraft_installs, DetectedInstall, InstallKind};
 pub use model::{Manifest, ManifestEntry, VersionKind};
 pub use record::{InstallRecord, InstalledVersion, VerifyReport};

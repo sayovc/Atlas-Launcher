@@ -13,6 +13,13 @@ pub fn paint(p: &Painter, page: Page, c: Pos2, size: f32, color: Color32) {
             p.add(Shape::line(vec![at(-0.65, -0.25), at(-0.65, 0.8), at(0.65, 0.8), at(0.65, -0.25)], st));
             p.add(Shape::line(vec![at(-0.18, 0.8), at(-0.18, 0.25), at(0.18, 0.25), at(0.18, 0.8)], st));
         }
+        Page::Discover => {
+            // compass
+            p.circle_stroke(c, s * 0.86, st);
+            let n = [at(0.0, -0.62), at(0.22, 0.0), at(0.0, 0.62), at(-0.22, 0.0)];
+            p.add(Shape::convex_polygon(vec![n[0], n[1], n[3]], color, Stroke::NONE));
+            p.add(Shape::closed_line(vec![n[1], n[2], n[3]], st));
+        }
         Page::Installations => {
             for (i, dy) in [-0.45f32, 0.0, 0.45].iter().enumerate() {
                 let pts = vec![at(0.0, dy - 0.38), at(0.85, *dy), at(0.0, dy + 0.38), at(-0.85, *dy)];

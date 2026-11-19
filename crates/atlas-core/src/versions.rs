@@ -17,6 +17,8 @@ pub enum JobKind {
     Install,
     Repair,
     Modpack,
+    /// Mods/packs from Modrinth (including bundles and updates).
+    Content,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -39,6 +41,8 @@ pub struct JobSnapshot {
     pub elapsed_secs: f64,
     /// Average bytes/second since start.
     pub speed_bps: f64,
+    /// Something worth telling the user when it's done (e.g. skipped mods).
+    pub note: Option<String>,
 }
 
 struct Job {
@@ -50,6 +54,7 @@ struct Job {
     started: Instant,
     started_unix: u64,
     finished: Option<Instant>,
+    note: Option<String>,
 }
 
 #[derive(Default)]
@@ -151,11 +156,23 @@ impl Atlas {
         self.version_service().installed()
     }
 
+    /// Installed Minecraft versions, without loader profiles.
+    pub fn installed_game_versions(&self) -> AtlasResult<Vec<InstalledVersion>> {
+        Ok(self.installed_versions()?.into_iter().filter(|v| v.inherits_from.is_none()).collect())
+    }
+
     /// Newest release not yet installed, from the cached list (no network).
     pub fn version_update(&self) -> Option<String> {
         let svc = self.version_service();
         let m = svc.cached_manifest()?;
         svc.update_available(&m).ok().flatten()
+    }
+
+    /// Loader builds available for a Minecraft version (newest first).
+    pub fn loader_versions(&self, loader: atlas_versions::LoaderKind, mc: &str) -> AtlasResult<Vec<atlas_versions::LoaderVersion>> {
+        let svc = self.version_service();
+        let dl = self.downloader()?;
+        self.rt.block_on(svc.loader_versions(&dl, loader, mc, &CancellationToken::new()))
     }
 
     pub fn detect_minecraft(&self) -> Vec<DetectedInstall> {
@@ -194,13 +211,19 @@ impl Atlas {
             started: Instant::now(),
             started_unix: now_unix(),
             finished: None,
+            note: None,
         });
         Ok((id, progress, cancel))
     }
 
     pub(crate) fn finish_job(jobs: &Mutex<Jobs>, id: JobId, result: AtlasResult<()>) {
+        Self::finish_job_with_note(jobs, id, result, None)
+    }
+
+    pub(crate) fn finish_job_with_note(jobs: &Mutex<Jobs>, id: JobId, result: AtlasResult<()>, note: Option<String>) {
         let mut j = jobs.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(job) = j.map.get_mut(&id) {
+            job.note = note;
             job.finished = Some(Instant::now());
             job.state = match result {
                 Ok(()) => JobState::Done,
@@ -282,6 +305,7 @@ impl Atlas {
                     started_unix: j.started_unix,
                     elapsed_secs: elapsed,
                     speed_bps: if elapsed > 0.0 { progress.done_bytes as f64 / elapsed } else { 0.0 },
+                    note: j.note.clone(),
                 }
             })
             .collect()

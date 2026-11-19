@@ -119,11 +119,67 @@ fn split_server(s: &str) -> (String, String) {
     }
 }
 
+fn read_json(root: &Path, id: &str) -> AtlasResult<Value> {
+    let p = root.join("versions").join(id).join(format!("{id}.json"));
+    let raw = std::fs::read(&p).map_err(|e| broken(format!("{}: {e}", p.display())))?;
+    serde_json::from_slice(&raw).map_err(|e| broken(e.to_string()))
+}
+
+fn lib_key(l: &Value) -> Option<String> {
+    // "group:artifact" (plus classifier) so a loader's newer asm replaces vanilla's
+    let name = l.get("name")?.as_str()?;
+    let parts: Vec<&str> = name.split(':').collect();
+    Some(match parts.as_slice() {
+        [g, a, _v, c, ..] => format!("{g}:{a}:{c}"),
+        [g, a, ..] => format!("{g}:{a}"),
+        _ => name.to_string(),
+    })
+}
+
+/// Load a version file, merging it onto its parent when it's a loader
+/// profile (`inheritsFrom`). Returns the merged file and the game jar.
+pub fn resolve_version(root: &Path, id: &str) -> AtlasResult<(Value, PathBuf)> {
+    let child = read_json(root, id)?;
+    let Some(parent_id) = child.get("inheritsFrom").and_then(|p| p.as_str()).map(str::to_owned) else {
+        let jar = root.join("versions").join(id).join(format!("{id}.jar"));
+        return Ok((child, jar));
+    };
+    let mut merged = read_json(root, &parent_id)?;
+    let child_libs: Vec<Value> = child.get("libraries").and_then(|l| l.as_array()).cloned().unwrap_or_default();
+    let taken: std::collections::HashSet<String> = child_libs.iter().filter_map(lib_key).collect();
+    let mut libs = child_libs;
+    for l in merged.get("libraries").and_then(|l| l.as_array()).cloned().unwrap_or_default() {
+        if lib_key(&l).is_none_or(|k| !taken.contains(&k)) {
+            libs.push(l);
+        }
+    }
+    let m = merged.as_object_mut().ok_or_else(|| broken("parent version file isn't an object"))?;
+    m.insert("libraries".into(), Value::Array(libs));
+    m.insert("id".into(), Value::String(id.to_string()));
+    if let Some(mc) = child.get("mainClass") {
+        m.insert("mainClass".into(), mc.clone());
+    }
+    if let Some(legacy) = child.get("minecraftArguments") {
+        m.insert("minecraftArguments".into(), legacy.clone());
+    }
+    if let Some(ca) = child.get("arguments") {
+        let mut args = m.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+        for side in ["jvm", "game"] {
+            let mut list = args.get(side).and_then(|a| a.as_array()).cloned().unwrap_or_default();
+            list.extend(ca.get(side).and_then(|a| a.as_array()).cloned().unwrap_or_default());
+            args[side] = Value::Array(list);
+        }
+        m.insert("arguments".into(), args);
+    }
+    let own = child.get("atlasOwnJar").and_then(|b| b.as_bool()).unwrap_or(false);
+    let jar_id = if own { id } else { parent_id.as_str() };
+    let jar = root.join("versions").join(jar_id).join(format!("{jar_id}.jar"));
+    Ok((merged, jar))
+}
+
 pub fn build_command(spec: &LaunchSpec) -> AtlasResult<LaunchCommand> {
-    let vdir = spec.data_root.join("versions").join(&spec.version_id);
-    let json_path = vdir.join(format!("{}.json", spec.version_id));
-    let raw = std::fs::read(&json_path).map_err(|e| broken(format!("{}: {e}", json_path.display())))?;
-    let v: Value = serde_json::from_slice(&raw).map_err(|e| broken(e.to_string()))?;
+    let (v, client) = resolve_version(&spec.data_root, &spec.version_id)?;
+    let raw = serde_json::to_vec(&v).unwrap_or_default();
     let p = spec.platform;
 
     // classpath: allowed library artifacts + the client jar
@@ -151,7 +207,6 @@ pub fn build_command(spec: &LaunchSpec) -> AtlasResult<LaunchCommand> {
             }
         }
     }
-    let client = vdir.join(format!("{}.jar", spec.version_id));
     if !client.is_file() {
         return Err(broken(format!("missing {}", client.display())));
     }
@@ -374,6 +429,32 @@ mod tests {
         assert!(a.contains("--session token:SECRET"));
         assert!(a.contains("--server mc.example.org --port 25565"));
         assert!(!display_command(&c).contains("SECRET"));
+    }
+
+    #[test]
+    fn loader_profile_merges_with_parent() {
+        let (t, mut spec) = setup(modern());
+        let pd = t.path().join("versions/fabric-x");
+        std::fs::create_dir_all(&pd).unwrap();
+        let lib = t.path().join("libraries/f/l.jar");
+        std::fs::create_dir_all(lib.parent().unwrap()).unwrap();
+        std::fs::write(&lib, b"loader").unwrap();
+        std::fs::write(pd.join("fabric-x.json"), serde_json::to_vec(&json!({
+            "id": "fabric-x", "inheritsFrom": "X", "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+            "arguments": {"jvm": ["-DFabricMcEmu= net.minecraft.client.main.Main "], "game": []},
+            "libraries": [{"name": "net.fabricmc:loader:1", "downloads": {"artifact": {"path": "f/l.jar"}}}, {"name": "a:b:2", "downloads": {"artifact": {"path": "f/l.jar"}}}]
+        })).unwrap()).unwrap();
+        spec.version_id = "fabric-x".into();
+        let c = build_command(&spec).unwrap();
+        let a = c.args.join(" ");
+        assert!(a.contains("net.fabricmc.loader.impl.launch.knot.KnotClient"));
+        assert!(a.contains("-DFabricMcEmu="));
+        assert!(a.contains("--username Steve"), "parent game args kept");
+        let cp_i = c.args.iter().position(|x| x == "-cp").unwrap();
+        let cp = c.args[cp_i + 1].replace('\\', "/");
+        assert!(cp.starts_with(&lib.to_string_lossy().replace('\\', "/")), "loader libs first: {cp}");
+        assert!(!cp.contains("a/b.jar"), "vanilla a:b replaced by the loader's a:b");
+        assert!(cp.ends_with("versions/X/X.jar"), "parent jar used: {cp}");
     }
 
     #[test]

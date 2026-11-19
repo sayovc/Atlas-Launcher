@@ -1,6 +1,8 @@
 //! Everything that lives inside a game folder or next to it: servers,
 //! mods, resource/shader packs, worlds, and modpack imports.
 
+pub mod bundles;
+pub mod modrinth;
 pub mod mods;
 pub mod mrpack;
 pub mod nbt;

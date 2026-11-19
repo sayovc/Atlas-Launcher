@@ -14,6 +14,7 @@ enum Tab {
 #[derive(Default)]
 pub struct ModsPage {
     tab: Tab,
+    updates_found: Option<usize>,
     search: String,
     confirm: Option<(Tab, String)>,
 }
@@ -43,7 +44,7 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
             ui.label(RichText::new("Mods & packs").heading().strong());
-            ui.label(RichText::new(format!("For {} · Minecraft {}", inst.name, inst.version)).color(theme::TEXT_DIM));
+            ui.label(RichText::new(format!("For {} · Minecraft {} · {}", inst.name, inst.version, inst.loader.label())).color(theme::TEXT_DIM));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let label = match mp.tab {
@@ -86,12 +87,42 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| match mp.tab {
         Tab::Mods => {
             let mods = atlas.mods(None).unwrap_or_default();
-            // honest note: we don't install loaders, so mods only load if one is already there
-            egui::Frame::new().fill(theme::WARN.gamma_multiply(0.07)).stroke(egui::Stroke::new(1.0, theme::WARN.gamma_multiply(0.35))).corner_radius(8).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.label(RichText::new("Atlas doesn't install Fabric, Forge or NeoForge yet. Mods here only load if this installation already has a loader.").small().color(theme::TEXT_DIM));
-            });
-            ui.add_space(8.0);
+            if inst.loader == atlas_core::LoaderKind::Vanilla {
+                egui::Frame::new().fill(theme::WARN.gamma_multiply(0.07)).stroke(egui::Stroke::new(1.0, theme::WARN.gamma_multiply(0.35))).corner_radius(8).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("This installation is vanilla, so these mods won't load.").small().color(theme::TEXT_DIM));
+                        if ui.small_button("Switch to Fabric").clicked() {
+                            match atlas.enable_mods(Some(&inst.id)) {
+                                Ok(_) => infos.push("Switched to Fabric.".into()),
+                                Err(e) => errors.push(e),
+                            }
+                        }
+                    });
+                });
+                ui.add_space(8.0);
+            } else {
+                ui.horizontal(|ui| {
+                    if let Some(n) = mp.updates_found {
+                        ui.label(RichText::new(if n == 0 { "Everything from Modrinth is up to date.".to_string() } else { format!("{n} update(s) available.") }).small().color(theme::TEXT_DIM));
+                        if n > 0 && ui.small_button("Update all").clicked() {
+                            match atlas.apply_content_updates(Some(&inst.id)) {
+                                Ok(_) => {
+                                    infos.push("Updating mods…".into());
+                                    mp.updates_found = None;
+                                }
+                                Err(e) => errors.push(e),
+                            }
+                        }
+                    } else if ui.small_button("Check for updates").clicked() {
+                        match atlas.content_updates(Some(&inst.id)) {
+                            Ok(u) => mp.updates_found = Some(u.len()),
+                            Err(e) => errors.push(e),
+                        }
+                    }
+                });
+                ui.add_space(6.0);
+            }
             if mods.is_empty() {
                 widgets::card(ui, |ui| {
                     ui.label(RichText::new("No mods. Drop .jar files in with Add mod.").color(theme::TEXT_DIM));

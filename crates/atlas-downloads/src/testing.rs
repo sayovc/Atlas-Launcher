@@ -47,7 +47,8 @@ pub fn serve_dynamic(honour_range: bool) -> (TestServer, FileMap) {
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let mut line = String::new();
                 if reader.read_line(&mut line).is_err() { return; }
-                let path = line.split_whitespace().nth(1).unwrap_or("/").to_string();
+                // ignore query strings; tests key responses by path only
+                let path = line.split_whitespace().nth(1).unwrap_or("/").split('?').next().unwrap_or("/").to_string();
                 let mut range_from: Option<usize> = None;
                 loop {
                     let mut l = String::new();

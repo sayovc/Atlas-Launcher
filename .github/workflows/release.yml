@@ -36,43 +36,35 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Linux build dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-x11-0 libgtk-3-dev
-      - name: Build
-        run: cargo build --release -p atlas-ui -p atlas-cli
-      - name: Package
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-x11-0 libgtk-3-dev libfuse2
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
+      - name: Build installers
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist pkg
-          cp target/release/atlas-launcher${{ matrix.exe }} dist/atlas-launcher-${{ matrix.key }}${{ matrix.exe }}
-          cp target/release/atlas-launcher${{ matrix.exe }} target/release/atlas${{ matrix.exe }} README.md LICENSE pkg/
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            7z a "dist/AtlasLauncher-${{ github.ref_name }}-${{ matrix.key }}.zip" ./pkg/*
-          elif [ "${{ runner.os }}" = "macOS" ]; then
-            app="pkg/Atlas Launcher.app/Contents"
-            mkdir -p "$app/MacOS"
-            cp target/release/atlas-launcher "$app/MacOS/"
-            cat > "$app/Info.plist" <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <plist version="1.0"><dict>
-            <key>CFBundleName</key><string>Atlas Launcher</string>
-            <key>CFBundleIdentifier</key><string>dev.atlaslauncher.app</string>
-            <key>CFBundleExecutable</key><string>atlas-launcher</string>
-            <key>CFBundleShortVersionString</key><string>${GITHUB_REF_NAME#v}</string>
-            <key>LSMinimumSystemVersion</key><string>12.0</string>
-            <key>NSHighResolutionCapable</key><true/>
-          </dict></plist>
-          PLIST
-            (cd pkg && zip -qry "../dist/AtlasLauncher-${{ github.ref_name }}-${{ matrix.key }}.zip" .)
-          else
-            tar -czf "dist/AtlasLauncher-${{ github.ref_name }}-${{ matrix.key }}.tar.gz" -C pkg .
-            cargo install cargo-deb --locked
-            cargo deb -p atlas-ui --no-build --output dist/
+          case "${{ runner.os }}" in
+            Windows) formats=nsis ;;
+            macOS) formats=app,dmg ;;
+            *) formats=deb,appimage ;;
+          esac
+          cargo packager --release -p atlas-ui --formats "$formats"
+      - name: Collect files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # raw binary for the self-updater, named <arch>-<os>
+          cp target/release/atlas-launcher${{ matrix.exe }} "out/atlas-launcher-${{ matrix.key }}${{ matrix.exe }}"
+          find dist -maxdepth 1 -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} out/ \;
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            (cd dist && zip -qry "../out/AtlasLauncher-${{ github.ref_name }}-${{ matrix.key }}.app.zip" "Atlas Launcher.app")
           fi
+          ls -la out
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.key }}
-          path: dist/*
+          path: out/*
 
   publish:
     needs: build

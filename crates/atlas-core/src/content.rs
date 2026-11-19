@@ -149,9 +149,20 @@ impl Atlas {
     /// Create an installation for the pack and fill it in the background.
     pub fn import_modpack(&self, pack: &Path) -> AtlasResult<(crate::Installation, JobId)> {
         let summary = atlas_content::mrpack::inspect(pack)?;
-        let inst = self.installations_store().create(&summary.name, &summary.minecraft, None)?;
-        if !summary.loaders.is_empty() {
-            tracing::warn!(pack = %summary.name, loaders = ?summary.loaders, "pack needs a mod loader Atlas doesn't install yet");
+        let mut inst = self.installations_store().create(&summary.name, &summary.minecraft, None)?;
+        // packs name their loader in dependencies: fabric-loader, quilt-loader, neoforge, forge
+        let loader = summary.loaders.iter().find_map(|(k, v)| {
+            let kind = match k.as_str() {
+                "fabric-loader" => atlas_versions::LoaderKind::Fabric,
+                "quilt-loader" => atlas_versions::LoaderKind::Quilt,
+                "neoforge" => atlas_versions::LoaderKind::NeoForge,
+                "forge" => atlas_versions::LoaderKind::Forge,
+                _ => return None,
+            };
+            Some((kind, v.clone()))
+        });
+        if let Some((kind, ver)) = loader {
+            inst = self.installations_store().update(&inst.id, atlas_instances::Changes { loader: Some(kind), loader_version: Some(Some(ver)), ..Default::default() })?;
         }
         let game_dir = self.installations_store().game_dir(&inst);
         let dl = self.downloader_pub()?;

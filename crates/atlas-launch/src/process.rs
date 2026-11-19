@@ -36,7 +36,7 @@ fn pipe<R: tokio::io::AsyncRead + Unpin + Send + 'static>(r: R, stream: &'static
     tokio::spawn(async move {
         let mut lines = BufReader::new(r).lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            let clean = atlas_shared::redact::redact(&line).into_owned();
+            let clean = atlas_shared::redact::redact(&strip_ansi(&line)).into_owned();
             if stream == "stderr" {
                 tracing::warn!(target: "minecraft", log_source = "game", "{clean}");
             } else {
@@ -126,6 +126,26 @@ fn newest_crash_report(game_dir: &Path, since: SystemTime) -> Option<PathBuf> {
         .map(|e| e.path())
 }
 
+/// Drop terminal colour codes (NeoForge and friends colour their console).
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            // skip parameters until the final letter
+            for d in chars.by_ref() {
+                if d.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 /// Ask a process to quit politely. Used for our own child and by
 /// `atlas stop` from another process.
 pub fn terminate(pid: u32) {
@@ -198,6 +218,12 @@ mod tests {
         let exit = h.await.unwrap();
         assert!(exit.stopped_by_user);
         assert!(!exit.crashed);
+    }
+
+    #[test]
+    fn colour_codes_are_stripped() {
+        assert_eq!(strip_ansi("\u{1b}[32m[main/INFO]\u{1b}[m done"), "[main/INFO] done");
+        assert_eq!(strip_ansi("plain"), "plain");
     }
 
     #[test]

@@ -26,11 +26,11 @@ atlas-mcp ─┘                 auth, content, updater
 | `atlas-config` | Where things live on disk, and `settings.toml` |
 | `atlas-logging` | Log files, the in-memory buffer for the log viewer |
 | `atlas-downloads` | Resumable, checksum-verified, cancellable downloads |
-| `atlas-versions` | Mojang's version list, installing/verifying/repairing versions, Java runtimes, finding other launchers |
+| `atlas-versions` | Mojang's version list, installing/verifying/repairing versions, mod loaders, Java runtimes, finding other launchers |
 | `atlas-instances` | Installations |
 | `atlas-launch` | Building the java command line, running the game, crash detection |
 | `atlas-auth` | Microsoft → Xbox → Minecraft sign-in, saved accounts |
-| `atlas-content` | Servers (and pinging them), mods, packs, worlds, `.mrpack` import |
+| `atlas-content` | Modrinth (search, installs, updates), bundles, servers, mods, packs, worlds, `.mrpack` import |
 | `atlas-updater` | Signed self-update with rollback |
 | `atlas-mcp` | The MCP server |
 | `atlas-core` | Ties it all together |
@@ -131,6 +131,51 @@ finally Exited or Error.
 
 The Play button only ever shows what `Atlas::game_state()` returns.
 
+## Mod loaders
+
+A loader is a small version file that builds on a vanilla version
+(`inheritsFrom`) and adds libraries, a main class and some arguments.
+Atlas installs that file like any other version, under
+`versions/<profile>/` with its own `install.toml`, so verify and repair
+work the same way. The launcher merges it onto its parent at start time:
+
+- loader libraries go first, and a loader's library replaces vanilla's
+  copy of the same one (asm, for example)
+- the loader's main class is used
+- arguments are combined
+- assets and Java come from the parent
+
+Where each loader comes from:
+
+- **Fabric:** Fabric's official metadata, which includes a SHA-1 and size
+  for every library.
+- **Quilt:** Quilt's official metadata. There are no hashes in the profile,
+  so Atlas reads the `.sha1` file next to each jar on Quilt's Maven.
+- **Forge and NeoForge:** Modrinth's launcher-meta, the open "daedalus"
+  format, which has already unpacked the installer. Atlas then runs the
+  client-side installer steps ("processors") with Java and checks their
+  outputs. The binary patch file in those profiles has no published hash,
+  so Atlas takes it from the official installer jar instead, which has a
+  `.sha1` on Forge's and NeoForge's own Maven.
+
+Using a metadata service is the idea that keeps this manageable; it's the
+same approach OneLauncher takes with its fork of daedalus.
+
+## Modrinth and bundles
+
+- **Search:** filtered to the installation's loader and Minecraft version.
+- **Install:** picks the newest release (betas only if there's no
+  release), follows required dependencies, checks every file's SHA-512,
+  and only downloads from Modrinth's CDN. Everything installed is recorded
+  in `<game>/.atlas/content.json`, so updates and removal know what's
+  what.
+- **Updates:** one request to Modrinth's `version_files/update` with the
+  hashes of what's installed.
+- **Bundles:** curated lists of Modrinth slugs (all Fabric). They're
+  resolved per Minecraft version, and anything without a build is skipped
+  and reported, never swapped for something else. "Create & play" is a
+  Fabric installation, plus bundles, plus play once they're in.
+
 ## Signing in
 
 1. **Microsoft.** Browser sign-in uses OAuth with PKCE and a temporary
@@ -154,13 +199,12 @@ runtime. Until it's set, sign-in says so and the game runs in demo mode.
 - **Servers:** live in `servers.toml`. The status ping is the same one the
   game's multiplayer screen uses.
 - **Mods:** read from `mods/`. Disabled mods are renamed to
-  `.jar.disabled`, and missing dependencies are flagged. Atlas doesn't
-  install Fabric, Forge or NeoForge, and the UI says so.
+  `.jar.disabled`, and missing dependencies are flagged.
 - **Worlds:** the name and mode come from `level.dat`, using a small NBT
   reader with depth and size limits. Backups are zip files, symlinks are
   skipped, and deleting a world always backs it up first.
-- **`.mrpack` import:** downloads are only allowed from Modrinth, GitHub
-  and GitLab, every file's SHA-512 or SHA-1 is checked, and overrides are
+- **`.mrpack` import:** the installation gets the pack's loader and loader
+  version. Downloads are only allowed from Modrinth, GitHub and GitLab, every file's SHA-512 or SHA-1 is checked, and overrides are
   unpacked with size limits and no symlinks. Every path stays inside the
   game folder.
 
@@ -207,7 +251,8 @@ The workspace uses `unsafe_code = "forbid"`.
 
 ## What's not done yet
 
-- Installing mod loaders (Fabric, Quilt, Forge, NeoForge).
+- CurseForge (its API needs a key).
+- Pre-made mod configs for the bundles; mods start with their own defaults.
 - Code signing and notarization for Windows and macOS builds.
 - Working sign-in needs the Azure app id. The approval for the Minecraft
   API is tied to that id.

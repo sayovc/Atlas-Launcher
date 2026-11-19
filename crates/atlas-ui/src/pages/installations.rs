@@ -9,6 +9,7 @@ pub struct InstallationsPage {
     new_name: String,
     new_version: String,
     new_dir: String,
+    new_loader: atlas_core::LoaderKind,
     edit: Option<EditForm>,
     confirm_delete: Option<Installation>,
 }
@@ -17,6 +18,7 @@ struct EditForm {
     id: String,
     name: String,
     version: String,
+    loader: atlas_core::LoaderKind,
     mem_override: bool,
     min: u32,
     max: u32,
@@ -33,6 +35,7 @@ impl EditForm {
             id: i.id.clone(),
             name: i.name.clone(),
             version: i.version.clone(),
+            loader: i.loader,
             mem_override: i.memory_max_mb.is_some(),
             min: i.memory_min_mb.unwrap_or(defaults.memory.min_mb),
             max: i.memory_max_mb.unwrap_or(defaults.memory.max_mb),
@@ -104,7 +107,7 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                     Ok((s, (i, _))) => {
                         infos.push(format!("Importing {} into a new installation \"{}\". Progress is on the Downloads page.", s.name, i.name));
                         if !s.loaders.is_empty() {
-                            infos.push(format!("This pack needs {}. Atlas can't install mod loaders yet, so the mods won't load in plain Minecraft.", s.loaders.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", ")));
+                            infos.push(format!("It uses {}, which Atlas installs the first time you play it.", s.loaders.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", ")));
                         }
                     }
                     Err(e) => errors.push(e),
@@ -158,7 +161,8 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                                     widgets::pill(ui, "Own folder", theme::TEXT_DIM);
                                 }
                             });
-                            let ver = if installed.contains(&inst.version) { format!("Minecraft {}", inst.version) } else { format!("Minecraft {} · not installed yet", inst.version) };
+                            let loader = if inst.loader == atlas_core::LoaderKind::Vanilla { String::new() } else { format!(" · {}", inst.loader.label()) };
+                            let ver = if installed.contains(&inst.version) { format!("Minecraft {}{loader}", inst.version) } else { format!("Minecraft {}{loader} · not installed yet", inst.version) };
                             ui.label(RichText::new(format!("{ver}  ·  {}", ago(inst.last_played))).color(theme::TEXT_DIM));
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -223,6 +227,13 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
             ui.label(RichText::new("Or type any version id:").small().color(theme::TEXT_FAINT));
             ui.add(egui::TextEdit::singleline(&mut ip.new_version).desired_width(f32::INFINITY));
             ui.add_space(4.0);
+            ui.label("Mod loader");
+            ui.horizontal(|ui| {
+                for l in atlas_core::LoaderKind::ALL {
+                    ui.radio_value(&mut ip.new_loader, l, l.label());
+                }
+            });
+            ui.add_space(4.0);
             ui.label("Game folder (optional)");
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut ip.new_dir).hint_text("Managed by Atlas").desired_width(320.0));
@@ -237,7 +248,7 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 if widgets::primary_button(ui, "Create", accent, !ip.new_name.trim().is_empty(), egui::vec2(100.0, 34.0)).clicked() {
                     let dir = (!ip.new_dir.trim().is_empty()).then(|| std::path::PathBuf::from(ip.new_dir.trim()));
-                    match atlas.create_installation(&ip.new_name, ip.new_version.trim(), dir) {
+                    match atlas.create_modded_installation(&ip.new_name, ip.new_version.trim(), ip.new_loader, dir) {
                         Ok(i) => {
                             infos.push(format!("Created {}.", i.name));
                             close = true;
@@ -268,6 +279,13 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                 ui.end_row();
                 ui.label("Version");
                 ui.add(egui::TextEdit::singleline(&mut f.version).desired_width(280.0));
+                ui.end_row();
+                ui.label("Mod loader");
+                egui::ComboBox::from_id_salt("edit-loader").selected_text(f.loader.label()).show_ui(ui, |ui| {
+                    for l in atlas_core::LoaderKind::ALL {
+                        ui.selectable_value(&mut f.loader, l, l.label());
+                    }
+                });
                 ui.end_row();
                 ui.label("Memory");
                 ui.vertical(|ui| {
@@ -303,6 +321,7 @@ pub fn show(app: &mut AtlasApp, ui: &mut egui::Ui) {
                     let ch = InstallationChanges {
                         name: Some(f.name.clone()),
                         version: Some(f.version.trim().to_string()),
+                        loader: Some(f.loader),
                         memory_min_mb: Some(f.mem_override.then_some(f.min)),
                         memory_max_mb: Some(f.mem_override.then_some(f.max)),
                         width: Some(f.res_override.then_some(f.w)),

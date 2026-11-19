@@ -58,8 +58,15 @@ impl Atlas {
     }
 
     pub fn create_installation(&self, name: &str, version: &str, game_dir: Option<PathBuf>) -> AtlasResult<Installation> {
+        self.create_modded_installation(name, version, atlas_versions::LoaderKind::Vanilla, game_dir)
+    }
+
+    pub fn create_modded_installation(&self, name: &str, version: &str, loader: atlas_versions::LoaderKind, game_dir: Option<PathBuf>) -> AtlasResult<Installation> {
         let version = self.resolve_version(version)?;
-        let inst = self.installations_store().create(name, &version, game_dir)?;
+        let mut inst = self.installations_store().create(name, &version, game_dir)?;
+        if loader != atlas_versions::LoaderKind::Vanilla {
+            inst = self.installations_store().update(&inst.id, Changes { loader: Some(loader), ..Default::default() })?;
+        }
         if self.settings().installations.default_installation.is_none() {
             self.select_installation(&inst.id)?;
         }
@@ -178,7 +185,14 @@ impl Atlas {
     /// the version and Java first if they're missing.
     pub fn play(&self, installation_id: Option<&str>, opts: PlayOptions) -> AtlasResult<()> {
         let inst = match installation_id {
-            Some(id) => self.installation(id)?,
+            Some(id) => {
+                let i = self.installation(id)?;
+                // playing something makes it the selected one, so Home follows along
+                if self.settings().installations.default_installation.as_deref() != Some(id) {
+                    self.select_installation(id)?;
+                }
+                i
+            }
             None => self.selected_installation().ok_or_else(|| {
                 AtlasError::new(ErrorCode::InvalidInstallation, "There's no installation to play.").suggest("Create one on the Installations page.")
             })?,
@@ -206,6 +220,7 @@ impl Atlas {
         };
         let mut extra_jvm = settings.game.extra_jvm_args.clone();
         extra_jvm.extend(inst.jvm_args.clone());
+        let (loader, loader_version) = (inst.loader, inst.loader_version.clone());
         let spec_base = LaunchSpec {
             data_root: paths.data_root.clone(),
             version_id: inst.version.clone(),
@@ -244,6 +259,14 @@ impl Atlas {
                     set(Phase::Installing(p.clone()));
                     let (m, _) = svc.manifest(&dl, false, &CancellationToken::new()).await?;
                     svc.install(&dl, &m, &spec_base.version_id, p, CancellationToken::new()).await?;
+                }
+                // 1b. the mod loader, if any (its profile builds on the vanilla files)
+                let mut spec_base = spec_base;
+                if loader != atlas_versions::LoaderKind::Vanilla {
+                    let p = Arc::new(Progress::new());
+                    set(Phase::Preparing(p.clone()));
+                    let lv = svc.pick_loader_version(&dl, loader, &spec_base.version_id, loader_version.as_deref(), &CancellationToken::new()).await?;
+                    spec_base.version_id = svc.install_loader(&dl, loader, &spec_base.version_id, &lv, p, CancellationToken::new()).await?;
                 }
                 // 2. java
                 let java = match java_override {
@@ -337,8 +360,8 @@ impl Atlas {
 /// Read `javaVersion.component` from the installed version file. Older
 /// versions don't have it and run fine on Mojang's legacy Java 8.
 fn java_component(root: &std::path::Path, id: &str) -> Option<String> {
-    let raw = std::fs::read(root.join("versions").join(id).join(format!("{id}.json"))).ok()?;
-    let v: serde_json::Value = serde_json::from_slice(&raw).ok()?;
+    // loader profiles don't say; their vanilla parent does
+    let (v, _) = atlas_launch::command::resolve_version(root, id).ok()?;
     v.get("javaVersion")?.get("component")?.as_str().map(str::to_owned)
 }
 

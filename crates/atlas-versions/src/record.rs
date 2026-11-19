@@ -32,6 +32,9 @@ pub struct InstallRecord {
     pub java_component: Option<String>,
     pub main_class: String,
     pub asset_index: String,
+    /// Set for loader profiles: the vanilla version they build on.
+    #[serde(default)]
+    pub inherits_from: Option<String>,
     pub files: Vec<RecordedFile>,
 }
 
@@ -39,6 +42,8 @@ pub struct InstallRecord {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct InstalledVersion {
     pub id: String,
+    /// Loader profiles point at the vanilla version they need.
+    pub inherits_from: Option<String>,
     pub kind: VersionKind,
     pub release_time: Option<String>,
     pub installed_at: u64,
@@ -52,6 +57,7 @@ impl InstallRecord {
     pub fn summary(&self, dir: PathBuf) -> InstalledVersion {
         InstalledVersion {
             id: self.id.clone(),
+            inherits_from: self.inherits_from.clone(),
             kind: self.kind,
             release_time: self.release_time.clone(),
             installed_at: self.installed_at,

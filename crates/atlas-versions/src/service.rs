@@ -41,6 +41,7 @@ impl Default for VersionSources {
 pub struct VersionService {
     pub paths: VersionPaths,
     pub sources: VersionSources,
+    pub loader_sources: crate::loaders::LoaderSources,
     /// Other launchers' folders to reuse verified files from (read-only).
     pub reuse_roots: Vec<PathBuf>,
     pub platform: Platform,
@@ -66,7 +67,7 @@ fn unix_now() -> u64 {
 
 impl VersionService {
     pub fn new(data_root: PathBuf, sources: VersionSources, reuse_roots: Vec<PathBuf>) -> Self {
-        Self { paths: VersionPaths { data_root }, sources, reuse_roots, platform: Platform::current() }
+        Self { paths: VersionPaths { data_root }, sources, loader_sources: Default::default(), reuse_roots, platform: Platform::current() }
     }
 
     /// Last manifest fetched, if any (no network).
@@ -224,6 +225,7 @@ impl VersionService {
             java_component: v.java_version.as_ref().and_then(|j| j.component.clone()),
             main_class: v.main_class.clone(),
             asset_index: v.asset_index.id.clone(),
+            inherits_from: None,
             files: recorded,
         };
         record.save(&work_dir)?;

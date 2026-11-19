@@ -68,6 +68,12 @@ enum Command {
     },
     /// Find existing Minecraft folders Atlas can reuse verified files from (read-only).
     Detect,
+    /// Loader builds for a Minecraft version, e.g. `atlas loaders 1.21.4 --loader fabric`.
+    Loaders {
+        version: String,
+        #[arg(long, default_value = "fabric")]
+        loader: String,
+    },
     /// List and manage installations.
     Instances {
         #[command(subcommand)]
@@ -120,6 +126,46 @@ enum Command {
         #[command(subcommand)]
         cmd: Option<WorldCmd>,
     },
+    /// Set up a modded installation in one go: Fabric plus mod bundles.
+    Client {
+        name: String,
+        #[arg(long, default_value = "latest")]
+        version: String,
+        /// Comma-separated bundle ids (see `atlas bundles`). Default: the recommended ones.
+        #[arg(long)]
+        bundles: Option<String>,
+    },
+    /// Search Modrinth for mods, resource packs or shaders that fit an installation.
+    Search {
+        query: Vec<String>,
+        /// mod, resourcepack, shader
+        #[arg(long, default_value = "mod")]
+        kind: String,
+        #[arg(long)]
+        instance: Option<String>,
+        #[arg(long, default_value_t = 0)]
+        page: u32,
+    },
+    /// Install something from Modrinth (slug or id), with its dependencies.
+    Add {
+        project: String,
+        #[arg(long, default_value = "mod")]
+        kind: String,
+        #[arg(long)]
+        instance: Option<String>,
+    },
+    /// Things installed from Modrinth: list, check updates, update, remove.
+    Content {
+        #[arg(long, global = true)]
+        instance: Option<String>,
+        #[command(subcommand)]
+        cmd: Option<ContentCmd>,
+    },
+    /// Curated mod bundles.
+    Bundles {
+        #[command(subcommand)]
+        cmd: Option<BundleCmd>,
+    },
     /// Import a Modrinth modpack (.mrpack) as a new installation.
     Import { pack: PathBuf },
     /// Check for and install Atlas updates.
@@ -146,6 +192,30 @@ enum Command {
         /// Maximum number of most recent records.
         #[arg(long, short = 'n', default_value_t = 200)]
         limit: usize,
+    },
+}
+
+#[derive(Subcommand)]
+enum ContentCmd {
+    List,
+    Updates,
+    /// Install every available update.
+    Update,
+    Remove {
+        project_id: String,
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum BundleCmd {
+    List,
+    /// Add bundles to an installation, e.g. `atlas bundles add performance qol`.
+    Add {
+        ids: Vec<String>,
+        #[arg(long)]
+        instance: Option<String>,
     },
 }
 
@@ -253,6 +323,9 @@ enum InstCmd {
         name: String,
         #[arg(long, default_value = "latest")]
         version: String,
+        /// vanilla, fabric, quilt, neoforge or forge
+        #[arg(long, default_value = "vanilla")]
+        loader: String,
         /// Use an existing folder as the game folder (it will never be deleted by Atlas).
         #[arg(long)]
         dir: Option<PathBuf>,
@@ -263,6 +336,12 @@ enum InstCmd {
         id: String,
         #[arg(long)]
         version: Option<String>,
+        /// vanilla, fabric, quilt, neoforge or forge
+        #[arg(long)]
+        loader: Option<String>,
+        /// Pin a loader build (default: newest stable)
+        #[arg(long)]
+        loader_version: Option<String>,
         #[arg(long)]
         memory_min: Option<u32>,
         #[arg(long)]
@@ -522,21 +601,24 @@ fn run(cli: Cli) -> AtlasResult<Output> {
                 let human = if list.is_empty() {
                     "No installations yet. Try: atlas instances create Survival".into()
                 } else {
-                    list.iter().map(|i| format!("{} {:<14} {:<24} {}", if Some(&i.id) == sel.as_ref() { "*" } else { " " }, i.id, i.name, i.version)).collect::<Vec<_>>().join("\n")
+                    list.iter().map(|i| format!("{} {:<14} {:<24} {:<10} {}", if Some(&i.id) == sel.as_ref() { "*" } else { " " }, i.id, i.name, i.version, i.loader.label())).collect::<Vec<_>>().join("\n")
                 };
                 Output { data: to_value(&list), human }
             }
-            InstCmd::Create { name, version, dir } => {
-                let i = atlas.create_installation(&name, &version, dir)?;
-                Output { human: format!("Created {} ({}) for Minecraft {}.", i.name, i.id, i.version), data: to_value(&i) }
+            InstCmd::Create { name, version, loader, dir } => {
+                let l = parse_loader(&loader)?;
+                let i = atlas.create_modded_installation(&name, &version, l, dir)?;
+                Output { human: format!("Created {} ({}) for Minecraft {} ({}).", i.name, i.id, i.version, i.loader.label()), data: to_value(&i) }
             }
             InstCmd::Rename { id, name } => {
                 let i = atlas.update_installation(&id, atlas_core::InstallationChanges { name: Some(name), ..Default::default() })?;
                 Output { human: format!("Renamed to {}.", i.name), data: to_value(&i) }
             }
-            InstCmd::Set { id, version, memory_min, memory_max, jvm_args, java } => {
+            InstCmd::Set { id, version, loader, loader_version, memory_min, memory_max, jvm_args, java } => {
                 let ch = atlas_core::InstallationChanges {
                     version,
+                    loader: loader.as_deref().map(parse_loader).transpose()?,
+                    loader_version: loader_version.map(Some),
                     memory_min_mb: memory_min.map(Some),
                     memory_max_mb: memory_max.map(Some),
                     jvm_args: (!jvm_args.is_empty()).then_some(jvm_args),
@@ -581,6 +663,11 @@ fn run(cli: Cli) -> AtlasResult<Output> {
                     _ => {}
                 }
                 if let Some(x) = atlas.last_exit() {
+                    if x.crashed {
+                        return Err(AtlasError::new(ErrorCode::GameCrashed, format!("The game crashed (exit code {}).", x.code.map(|c| c.to_string()).unwrap_or("?".into())))
+                            .details(x.crash_report.as_ref().map(|p| format!("Crash report: {}", p.display())).unwrap_or_default())
+                            .suggest("Check `atlas logs --source crash` for the report."));
+                    }
                     break Output { human: format!("Game exited (code {}).", x.code.map(|c| c.to_string()).unwrap_or("?".into())), data: to_value(&x) };
                 }
                 std::thread::sleep(std::time::Duration::from_millis(300));
@@ -643,7 +730,7 @@ fn run(cli: Cli) -> AtlasResult<Output> {
                                 line.push_str(&format!("  (needs: {})", m.missing.join(", ")));
                             }
                             line
-                        }).collect::<Vec<_>>().join("\n") + "\n\nNote: Atlas doesn't install Fabric/Forge/NeoForge loaders yet, so these only load if you add a loader yourself."
+                        }).collect::<Vec<_>>().join("\n")
                     };
                     Output { data: to_value(&list), human }
                 }
@@ -712,11 +799,77 @@ fn run(cli: Cli) -> AtlasResult<Output> {
             let summary = atlas.inspect_modpack(&pack)?;
             let (inst, job) = atlas.import_modpack(&pack)?;
             if !summary.loaders.is_empty() && !cli.json {
-                eprintln!("Heads up: this pack needs {} which Atlas can't install yet. Files are imported, but the mods won't load in plain Minecraft.", summary.loaders.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", "));
+                eprintln!("This pack uses {}; Atlas installs it the first time you play.", summary.loaders.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", "));
             }
             let out = run_job(&atlas, job, cli.json)?;
             Output { human: format!("{}\nCreated installation {} ({}).", out.human, inst.name, inst.id), data: json!({ "installation": inst, "summary": summary }) }
         }
+        Command::Client { name, version, bundles } => {
+            let ids: Vec<String> = match bundles {
+                Some(b) => b.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(),
+                None => atlas.bundles().iter().filter(|b| b.default_on).map(|b| b.id.to_string()).collect(),
+            };
+            let (inst, job) = atlas.create_client(&name, &version, &ids)?;
+            let mut human = format!("Created {} ({}) for Minecraft {} with Fabric.", inst.name, inst.id, inst.version);
+            if let Some(j) = job {
+                let out = run_job(&atlas, j, cli.json)?;
+                human.push_str(&format!("\n{}", out.human));
+                let items = atlas.installed_content(Some(&inst.id))?;
+                human.push_str(&format!("\n{} mods ready: {}", items.len(), items.iter().map(|i| i.title.as_str()).collect::<Vec<_>>().join(", ")));
+            }
+            human.push_str("\nStart it with: atlas play");
+            Output { human, data: json!({ "installation": inst }) }
+        }
+        Command::Search { query, kind, instance, page } => {
+            let kind = parse_kind(&kind)?;
+            let r = atlas.search_content(instance.as_deref(), &query.join(" "), kind, page)?;
+            let human = if r.hits.is_empty() { "Nothing found.".into() } else {
+                r.hits.iter().map(|h| format!("{:<26} {:>10} downloads  {}", h.slug, h.downloads, h.description.chars().take(60).collect::<String>())).collect::<Vec<_>>().join("\n") + &format!("\n({} results; install with `atlas add <slug>`)", r.total_hits)
+            };
+            Output { data: to_value(&r), human }
+        }
+        Command::Add { project, kind, instance } => {
+            let kind = parse_kind(&kind)?;
+            let job = atlas.install_content(instance.as_deref(), &project, kind)?;
+            let out = run_job(&atlas, job, cli.json)?;
+            Output { human: out.human, data: to_value(&atlas.installed_content(instance.as_deref())?) }
+        }
+        Command::Content { instance, cmd } => {
+            let inst = instance.as_deref();
+            match cmd.unwrap_or(ContentCmd::List) {
+                ContentCmd::List => {
+                    let list = atlas.installed_content(inst)?;
+                    let human = if list.is_empty() { "Nothing installed from Modrinth yet.".into() } else {
+                        list.iter().map(|i| format!("{:<28} {:<20} {}{}", i.title, i.version_number, i.project_id, if i.dependency { "  (dependency)" } else { "" })).collect::<Vec<_>>().join("\n")
+                    };
+                    Output { data: to_value(&list), human }
+                }
+                ContentCmd::Updates => {
+                    let ups = atlas.content_updates(inst)?;
+                    let human = if ups.is_empty() { "Everything's up to date.".into() } else { ups.iter().map(|u| format!("{:<28} {} -> {}", u.title, u.current, u.latest)).collect::<Vec<_>>().join("\n") + "\nInstall with: atlas content update" };
+                    Output { data: to_value(&ups), human }
+                }
+                ContentCmd::Update => {
+                    let job = atlas.apply_content_updates(inst)?;
+                    run_job(&atlas, job, cli.json)?
+                }
+                ContentCmd::Remove { project_id, yes } => {
+                    atlas.uninstall_content(inst, &project_id, Confirmation::from_bool(yes))?;
+                    Output { human: "Removed.".into(), data: json!({ "removed": project_id }) }
+                }
+            }
+        }
+        Command::Bundles { cmd } => match cmd.unwrap_or(BundleCmd::List) {
+            BundleCmd::List => {
+                let b = atlas.bundles();
+                let human = b.iter().map(|b| format!("{:<12} {:<20} {}{}\n             {}", b.id, b.name, b.blurb, if b.default_on { "  (recommended)" } else { "" }, b.mods.join(", "))).collect::<Vec<_>>().join("\n");
+                Output { data: to_value(&b), human }
+            }
+            BundleCmd::Add { ids, instance } => {
+                let job = atlas.install_bundles(instance.as_deref(), &ids)?;
+                run_job(&atlas, job, cli.json)?
+            }
+        },
         Command::Update { cmd } => match cmd.unwrap_or(UpdateCmd::Check) {
             UpdateCmd::Check => match atlas.check_for_update()? {
                 Some(u) => Output { human: format!("Atlas {} is available (you have {}).\n{}\nInstall with: atlas update install", u.version, atlas_shared::ATLAS_VERSION, u.notes), data: to_value(&u) },
@@ -760,6 +913,17 @@ fn run(cli: Cli) -> AtlasResult<Output> {
                 Output { human: format!("Approved: {}. The assistant can go ahead now.", p.action), data: to_value(&p) }
             }
         },
+        Command::Loaders { version, loader } => {
+            let l = parse_loader(&loader)?;
+            let mc = atlas.resolve_version(&version)?;
+            let list = atlas.loader_versions(l, &mc)?;
+            let human = if list.is_empty() {
+                format!("{} has nothing for Minecraft {mc} yet.", l.label())
+            } else {
+                list.iter().take(15).map(|v| format!("{:<20} {}", v.version, if v.stable { "stable" } else { "" })).collect::<Vec<_>>().join("\n")
+            };
+            Output { data: to_value(&list), human }
+        }
         Command::Detect => {
             let found = atlas.detect_minecraft();
             let human = if found.is_empty() {
@@ -788,6 +952,19 @@ fn run(cli: Cli) -> AtlasResult<Output> {
             Output { data: to_value(&recs), human }
         }
     })
+}
+
+fn parse_kind(s: &str) -> AtlasResult<atlas_core::ProjectType> {
+    Ok(match s {
+        "mod" | "mods" => atlas_core::ProjectType::Mod,
+        "resourcepack" | "resource" | "pack" => atlas_core::ProjectType::Resourcepack,
+        "shader" | "shaders" => atlas_core::ProjectType::Shader,
+        other => return Err(AtlasError::new(ErrorCode::InvalidArgument, format!("Unknown kind '{other}'.")).suggest("Use mod, resourcepack or shader.")),
+    })
+}
+
+fn parse_loader(s: &str) -> AtlasResult<atlas_core::LoaderKind> {
+    atlas_core::LoaderKind::parse(s).ok_or_else(|| AtlasError::new(ErrorCode::InvalidArgument, format!("Unknown loader '{s}'.")).suggest("Use vanilla, fabric, quilt, neoforge or forge."))
 }
 
 fn human_bytes(b: u64) -> String {
@@ -830,9 +1007,13 @@ fn run_job(atlas: &Atlas, id: atlas_core::JobId, json: bool) -> AtlasResult<Outp
             let p = &snap.progress;
             let human = format!(
                 "{} {} in {:.1}s: {} downloaded, {} reused from other launchers, {} already valid.",
-                match snap.kind { atlas_core::JobKind::Install => "Installed", atlas_core::JobKind::Repair => "Repaired", atlas_core::JobKind::Modpack => "Imported" },
+                match snap.kind { atlas_core::JobKind::Install => "Installed", atlas_core::JobKind::Repair => "Repaired", atlas_core::JobKind::Modpack => "Imported", atlas_core::JobKind::Content => "Installed" },
                 snap.version, snap.elapsed_secs, p.downloaded_files, p.reused_files, p.already_valid_files
             );
+            let human = match &snap.note {
+                Some(n) => format!("{human}\n{n}"),
+                None => human,
+            };
             Ok(Output { data: to_value(&snap), human })
         }
         atlas_core::JobState::Failed { error } => Err(error.clone()),

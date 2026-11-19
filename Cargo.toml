@@ -14,3 +14,7 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 unwrap_used = "warn"
+
+# third-party crates don't need debug info; keeps target/ small and builds quicker
+[profile.dev.package."*"]
+debug = false

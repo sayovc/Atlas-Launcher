@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 pub enum Page {
     Home,
     Installations,
+    Discover,
     Versions,
     Mods,
     Servers,
@@ -21,9 +22,10 @@ pub enum Page {
 }
 
 impl Page {
-    pub const NAV: [Page; 9] = [
+    pub const NAV: [Page; 10] = [
         Page::Home,
         Page::Installations,
+        Page::Discover,
         Page::Versions,
         Page::Mods,
         Page::Servers,
@@ -36,6 +38,7 @@ impl Page {
         match self {
             Page::Home => "Home",
             Page::Installations => "Installations",
+            Page::Discover => "Discover",
             Page::Versions => "Versions",
             Page::Mods => "Mods",
             Page::Servers => "Servers",
@@ -72,6 +75,9 @@ pub struct AtlasApp {
     pub servers_page: pages::servers::ServersPage,
     pub mods_page: pages::mods::ModsPage,
     pub worlds_page: pages::worlds::WorldsPage,
+    pub discover_page: pages::discover::DiscoverPage,
+    pub play_after_job: Option<atlas_core::JobId>,
+    pub setup_bundles: std::collections::HashSet<&'static str>,
     pub server_addr: String,
     was_running: bool,
     started: Instant,
@@ -97,6 +103,9 @@ impl AtlasApp {
             servers_page: Default::default(),
             mods_page: Default::default(),
             worlds_page: Default::default(),
+            discover_page: Default::default(),
+            play_after_job: None,
+            setup_bundles: atlas_core_default_bundles(),
             server_addr: String::new(),
             was_running: false,
             started: Instant::now(),
@@ -242,6 +251,24 @@ impl eframe::App for AtlasApp {
         if self.status_at.elapsed() > Duration::from_millis(if active { 300 } else { 1500 }) {
             self.refresh_status();
         }
+        if let Some(j) = self.play_after_job
+            && let Some(snap) = self.atlas.job(j)
+            && snap.state != atlas_core::JobState::Running
+        {
+            self.play_after_job = None;
+            if let Some(n) = snap.note.clone() {
+                self.push_info(n);
+            }
+            match snap.state {
+                atlas_core::JobState::Done => {
+                    if let Err(e) = self.atlas.play(None, Default::default()) {
+                        self.push_error(e);
+                    }
+                }
+                atlas_core::JobState::Failed { error } => self.push_error(error),
+                _ => {}
+            }
+        }
         // an update that survives 10 seconds of normal running is a keeper
         if !self.healthy_marked && self.started.elapsed() > Duration::from_secs(10) {
             self.healthy_marked = true;
@@ -289,9 +316,18 @@ impl eframe::App for AtlasApp {
                     Page::Servers => pages::servers::show(self, ui),
                     Page::Mods => pages::mods::show(self, ui),
                     Page::Worlds => pages::worlds::show(self, ui),
+                    Page::Discover => pages::discover::show(self, ui),
                 }
             });
         // Keep the live log view and status fresh without busy-looping.
         ctx.request_repaint_after(Duration::from_millis(500));
     }
+}
+
+fn atlas_core_default_bundles() -> std::collections::HashSet<&'static str> {
+    atlas_content_bundles().iter().filter(|b| b.default_on).map(|b| b.id).collect()
+}
+
+fn atlas_content_bundles() -> &'static [atlas_core::Bundle] {
+    atlas_core::Atlas::all_bundles()
 }

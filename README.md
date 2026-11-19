@@ -1,10 +1,12 @@
 # Atlas Launcher
 
-A launcher for Minecraft: Java Edition, written in Rust. Atlas installs
-game versions straight from Mojang, checks every file, keeps each
-installation separate, and gets out of your way when you hit Play.
+Modded Minecraft in one click. Pick a version and Atlas sets up Fabric with
+a hand-picked set of open-source mods, or any mix of loaders, mods and
+packs you like. It's a fast native launcher written in Rust, and every
+file it downloads is checked.
 
 ![Home](docs/screenshots/home.png)
+![Discover](docs/screenshots/discover.png)
 
 > Pre-alpha. Most things work, some edges are rough. Atlas isn't made by or
 > affiliated with Mojang or Microsoft, and it doesn't ship any game files:
@@ -12,6 +14,14 @@ installation separate, and gets out of your way when you hit Play.
 
 ## What it does
 
+- **One-click setup:** "Create & play" makes a Fabric installation with
+  curated bundles (Performance, Shaders & visuals, Quality of life, Info &
+  maps) for the latest Minecraft, then starts it.
+- **Mod loaders:** Fabric, Quilt, NeoForge and Forge, installed
+  automatically the first time you play.
+- **Discover:** search Modrinth for mods, resource packs and shaders that
+  fit your installation. Installs are one click, dependencies come along
+  automatically, and updates are one button.
 - **Versions:** every release and snapshot from Mojang's official list.
   Downloads resume if interrupted, every file is checked against Mojang's
   hashes, and Repair re-downloads only what's broken. Files you already
@@ -28,8 +38,7 @@ installation separate, and gets out of your way when you hit Play.
 - **Servers:** a saved list that shows who's online.
 - **Mods and packs:** list, enable, disable and remove mods (Fabric, Quilt,
   Forge and NeoForge metadata is read), plus resource and shader packs.
-  Modrinth `.mrpack` modpacks can be imported. Atlas doesn't install mod
-  loaders yet.
+  Modrinth `.mrpack` modpacks import with their loader set up.
 - **Worlds:** list, back up to zip, and delete (which always backs up first).
 - **Logs:** launcher and game logs with search and filters. Tokens are
   stripped out automatically.
@@ -57,8 +66,12 @@ cargo test --workspace
 ## Command line
 
 ```bash
-atlas install latest
-atlas instances create Survival --version latest
+atlas client "Atlas Client" --bundles performance,qol
+atlas search sodium
+atlas add iris
+atlas content updates
+atlas instances create Survival --version latest --loader fabric
+atlas loaders 1.21.1 --loader neoforge
 atlas play
 atlas play --server play.example.net
 atlas versions --installed
@@ -92,9 +105,18 @@ stops the server immediately.
   secret `ATLAS_UPDATE_KEY` and the public key in the variable
   `ATLAS_UPDATE_PUBKEY`.
 - **Publishing:** push a tag like `v0.2.0` and GitHub Actions builds the
-  Windows, macOS and Linux packages.
+  installers with cargo-packager: NSIS for Windows, DMG and .app for macOS,
+  .deb and AppImage for Linux.
 
 More detail is in [docs/ATLAS_ARCHITECTURE.md](docs/ATLAS_ARCHITECTURE.md).
+
+## Thanks
+
+Atlas borrows ideas, not code, from Polyfrost's
+[OneLauncher](https://github.com/Polyfrost/OneLauncher): curated one-click
+mod sets, leaning on a loader metadata service, and cargo-packager for
+installers. Forge and NeoForge profiles come from Modrinth's public
+launcher metadata, and mods come from [Modrinth](https://modrinth.com).
 
 ## License
 

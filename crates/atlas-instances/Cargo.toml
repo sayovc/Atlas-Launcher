@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 atlas-shared = { version = "0.1.0", path = "../atlas-shared" }
+atlas-versions = { version = "0.1.0", path = "../atlas-versions" }
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.2.1"
 tracing = "0.1.44"
