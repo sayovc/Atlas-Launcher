@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Atlas Launcher</title>
-<meta name="description" content="A fast, open-source Minecraft: Java Edition launcher written in Rust.">
+<meta name="description" content="Modded Minecraft in one click: Fabric, hand-picked mods and every loader, in a fast open-source launcher.">
 <meta name="theme-color" content="#0c0f14">
 <meta property="og:title" content="Atlas Launcher">
-<meta property="og:description" content="A fast, open-source Minecraft: Java Edition launcher written in Rust.">
+<meta property="og:description" content="Modded Minecraft in one click: Fabric, hand-picked mods and every loader, in a fast open-source launcher.">
 <meta property="og:image" content="assets/home.png">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/style.css">
@@ -23,26 +23,26 @@
 <section class="hero2"><canvas id="globe" aria-hidden="true"></canvas>
 <div class="inner">
 <h1 class="title">Atlas</h1>
-<p class="tag">A launcher that's <span class="word" id="word">fast.</span></p>
+<p class="tag">Modded Minecraft in <span class="word" id="word">one click.</span></p>
 <a class="btn primary glow magnetic" href="download.html">Download</a>
 </div><span class="scroll-hint" aria-hidden="true"></span></section>
 
 <div class="stage"><div class="frame"><img src="assets/home.png" alt="Atlas launcher home screen"></div></div>
 
 <div class="tiles">
-<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg><b>Native Rust</b><small>Opens fast, uses little memory</small></div>
-<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><b>Verified files</b><small>Every download checksummed</small></div>
-<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg><b>Many installs</b><small>Each fully separate</small></div>
+<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg><b>One click</b><small>Fabric + hand-picked mods, ready to play</small></div>
+<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><b>Modrinth built in</b><small>Search, install, update</small></div>
+<div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg><b>Every loader</b><small>Fabric, Quilt, NeoForge, Forge</small></div>
 <div class="spot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></svg><b>Open source</b><small>MIT · no telemetry</small></div>
 </div>
 
 <div class="progress"><b>Pre-alpha</b>
 <div class="bar"><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i></div>
-<small>Everything's in · polishing before the first release</small></div>
+<small>Loaders, bundles and Discover are in · first release soon</small></div>
 <script src="assets/globe.js" defer></script>
 <script>
 (() => {
-  const words = ["fast.", "open.", "yours.", "safe.", "simple."];
+  const words = ["one click.", "seconds.", "any version.", "the open."];
   const el = document.getElementById("word"); let i = 0;
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   setInterval(() => { i = (i + 1) % words.length; el.textContent = words[i];
